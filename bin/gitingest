@@ -1,0 +1,35 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "optparse"
+require "gitingest"
+
+options = {}
+parser = OptionParser.new do |opts|
+  opts.banner = "Usage: gitingest [options]"
+
+  opts.on("-r", "--repository REPO", "GitHub repository (username/repo)") { |repo| options[:repository] = repo }
+  opts.on("-t", "--token TOKEN", "GitHub personal access token") { |token| options[:token] = token }
+  opts.on("-o", "--output FILE", "Output file for the prompt") { |file| options[:output_file] = file }
+  opts.on("-e", "--exclude PATTERN", "File patterns to exclude (comma separated)") do |pattern|
+    options[:exclude] = pattern.split(",").map(&:strip)
+  end
+  opts.on("-b", "--branch BRANCH", "Repository branch (default: main)") { |branch| options[:branch] = branch }
+  opts.on("-h", "--help", "Show this help message") do
+    puts opts
+    exit
+  end
+end
+
+begin
+  parser.parse!
+  generator = Gitingest::Generator.new(options)
+  generator.run
+rescue ArgumentError => e
+  puts "Error: #{e.message}"
+  puts parser
+  exit 1
+rescue StandardError => e
+  puts "Error: #{e.message}"
+  exit 1
+end

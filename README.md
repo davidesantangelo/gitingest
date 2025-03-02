@@ -1,43 +1,82 @@
-# Getingest
+# Gitingest
 
-TODO: Delete this and the text below, and describe your gem
-
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/getingest`. To experiment with that code, run `bin/console` for an interactive prompt.
+Gitingest is a Ruby gem that fetches files from a GitHub repository and generates a consolidated text prompt, which can be used as input for large language models, documentation generation, or other purposes.
 
 ## Installation
 
-TODO: Replace `UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG` with your gem name right after releasing it to RubyGems.org. Please do not do it earlier due to security reasons. Alternatively, replace this section with instructions to install your gem from git if you don't plan to release to RubyGems.org.
-
-Install the gem and add to the application's Gemfile by executing:
+### From RubyGems
 
 ```bash
-bundle add UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
+gem install gitingest
 ```
 
-If bundler is not being used to manage dependencies, install the gem by executing:
+### From Source
 
 ```bash
-gem install UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
+git clone https://github.com/davidesantangelo/gitingest.git
+cd gitingest
+bundle install
+bundle exec rake install
 ```
 
 ## Usage
 
-TODO: Write usage instructions here
+### Command Line
 
-## Development
+```bash
+gitingest --repository username/repo --token YOUR_GITHUB_TOKEN --output output.txt
+```
 
-After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake spec` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
+#### Available Options
 
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and the created tag, and push the `.gem` file to [rubygems.org](https://rubygems.org).
+- `-r, --repository REPO`: GitHub repository (username/repo) [Required]
+- `-t, --token TOKEN`: GitHub personal access token [Optional but recommended]
+- `-o, --output FILE`: Output file for the prompt [Default: reponame_prompt.txt]
+- `-e, --exclude PATTERN`: File patterns to exclude (comma separated)
+- `-b, --branch BRANCH`: Repository branch [Default: main]
+- `-h, --help`: Show help message
+
+### As a Library
+
+```ruby
+require 'gitingest'
+
+options = {
+  repository: 'username/repo',
+  token: 'your_github_token', # Optional
+  output_file: 'output.txt', # Optional
+  branch: 'main', # Optional
+  exclude: ['node_modules', '.*\.png$'] # Optional
+}
+
+generator = Gitingest::Generator.new(options)
+generator.run
+```
+
+## Features
+
+- Fetches all files from a GitHub repository based on the given branch
+- Automatically excludes common binary files and system files by default
+- Allows custom exclusion patterns for specific file extensions or directories
+- Uses concurrent processing for faster downloads
+- Handles GitHub API rate limiting with automatic retry
+- Generates a clean, formatted output file with file paths and content
+
+## Default Exclusion Patterns
+
+By default, Gitingest excludes the following files and directories:
+
+- `.git/`, `.github/`, `.gitignore`, `.DS_Store`
+- Log files: `.*\.log$`
+- Image files: `.*\.png$`, `.*\.jpg$`, `.*\.jpeg$`, `.*\.gif$`, `.*\.svg$`
+- Document files: `.*\.pdf$`
+- Archive files: `.*\.zip$`, `.*\.tar\.gz$`
+- Dependency directories: `node_modules/`, `vendor/`
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/getingest. This project is intended to be a safe, welcoming space for collaboration, and contributors are expected to adhere to the [code of conduct](https://github.com/[USERNAME]/getingest/blob/master/CODE_OF_CONDUCT.md).
+Bug reports and pull requests are welcome on GitHub at https://github.com/davidesantangelo/gitingest.
 
 ## License
 
 The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
-
-## Code of Conduct
-
-Everyone interacting in the Getingest project's codebases, issue trackers, chat rooms and mailing lists is expected to follow the [code of conduct](https://github.com/[USERNAME]/getingest/blob/master/CODE_OF_CONDUCT.md).

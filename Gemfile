@@ -2,7 +2,7 @@
 
 source "https://rubygems.org"
 
-# Specify your gem's dependencies in getingest.gemspec
+# Specify your gem's dependencies in gitingest.gemspec
 gemspec
 
 gem "rake", "~> 13.0"
