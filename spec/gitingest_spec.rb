@@ -49,22 +49,22 @@ RSpec.describe Gitingest do
       let(:generator) { Gitingest::Generator.new(repository: "user/repo") }
 
       it "excludes dotfiles" do
-        expect(generator.excluded_file?(".env")).to be true
+        expect(generator.send(:excluded_file?, ".env")).to be true
       end
 
       it "excludes files in dot directories" do
-        expect(generator.excluded_file?(".github/workflows/ci.yml")).to be true
+        expect(generator.send(:excluded_file?, ".github/workflows/ci.yml")).to be true
       end
 
       it "excludes files matching default patterns" do
-        expect(generator.excluded_file?("node_modules/package.json")).to be true
-        expect(generator.excluded_file?("image.png")).to be true
-        expect(generator.excluded_file?("vendor/cache/gems")).to be true
+        expect(generator.send(:excluded_file?, "node_modules/package.json")).to be true
+        expect(generator.send(:excluded_file?, "image.png")).to be true
+        expect(generator.send(:excluded_file?, "vendor/cache/gems")).to be true
       end
 
       it "doesn't exclude regular code files" do
-        expect(generator.excluded_file?("lib/gitingest.rb")).to be false
-        expect(generator.excluded_file?("README.md")).to be false
+        expect(generator.send(:excluded_file?, "lib/gitingest.rb")).to be false
+        expect(generator.send(:excluded_file?, "README.md")).to be false
       end
     end
 
@@ -90,22 +90,22 @@ RSpec.describe Gitingest do
       end
 
       it "validates repository access successfully" do
-        expect { generator.validate_repository_access }.not_to raise_error
+        expect { generator.send(:validate_repository_access) }.not_to raise_error
       end
 
       it "raises error for unauthorized access" do
         allow(generator.client).to receive(:repository).and_raise(Octokit::Unauthorized)
-        expect { generator.validate_repository_access }.to raise_error(/Authentication error/)
+        expect { generator.send(:validate_repository_access) }.to raise_error(/Authentication error/)
       end
 
       it "raises error for repository not found" do
         allow(generator.client).to receive(:repository).and_raise(Octokit::NotFound)
-        expect { generator.validate_repository_access }.to raise_error(/not found or is private/)
+        expect { generator.send(:validate_repository_access) }.to raise_error(/not found or is private/)
       end
 
       it "raises error for branch not found" do
         allow(generator.client).to receive(:branch).and_raise(Octokit::NotFound)
-        expect { generator.validate_repository_access }.to raise_error(/Branch.*not found/)
+        expect { generator.send(:validate_repository_access) }.to raise_error(/Branch.*not found/)
       end
     end
 
@@ -127,7 +127,7 @@ RSpec.describe Gitingest do
         allow(generator).to receive(:excluded_file?).with("lib/gitingest.rb").and_return(false)
         allow(generator).to receive(:excluded_file?).with("node_modules/package.json").and_return(true)
 
-        generator.fetch_repository_contents
+        generator.send(:fetch_repository_contents)
         expect(generator.repo_files).to eq([file1])
       end
 
@@ -136,7 +136,7 @@ RSpec.describe Gitingest do
         allow(tree).to receive(:tree).and_return(files)
         allow(generator).to receive(:excluded_file?).and_return(false)
 
-        generator.fetch_repository_contents
+        generator.send(:fetch_repository_contents)
         expect(generator.repo_files.size).to eq(Gitingest::Generator::MAX_FILES)
       end
     end
@@ -148,7 +148,7 @@ RSpec.describe Gitingest do
       it "fetches and decodes file content" do
         allow(generator.client).to receive(:contents).and_return(content)
 
-        result = generator.fetch_file_content_with_retry("lib/file.rb")
+        result = generator.send(:fetch_file_content_with_retry, "lib/file.rb")
         expect(result).to eq("file content")
       end
 
@@ -161,7 +161,7 @@ RSpec.describe Gitingest do
           call_count < 2 ? raise(Octokit::TooManyRequests) : content
         end
 
-        result = generator.fetch_file_content_with_retry("lib/file.rb")
+        result = generator.send(:fetch_file_content_with_retry, "lib/file.rb")
         expect(result).to eq("file content")
         expect(call_count).to eq(2)
       end
@@ -178,11 +178,12 @@ RSpec.describe Gitingest do
         allow(Concurrent::FixedThreadPool).to receive(:new).and_return(pool)
         allow(pool).to receive(:post).and_yield
         allow(pool).to receive(:shutdown)
-        allow(pool).to receive(:wait_for_termination)
+        allow(pool).to receive(:wait_for_termination).and_return(true) # Return true by default
+        allow(pool).to receive(:kill) # Add this line to allow the kill method
         allow(File).to receive(:open).and_yield(file_double)
         allow(file_double).to receive(:puts)
         allow(generator).to receive(:fetch_file_content_with_retry).with("lib/file.rb").and_return("file content")
-        allow(generator).to receive(:print)
+        allow(generator).to receive(:print) # For progress indicator
       end
 
       it "processes each file and generates content" do
@@ -195,18 +196,18 @@ RSpec.describe Gitingest do
           expect(content).to include("file content")
         end
 
-        generator.generate_prompt
+        generator.send(:generate_prompt)
       end
 
-      it "handles write buffer operations correctly" do
-        # Create a test buffer with content
-        buffer_content = "test content"
-        buffer = [buffer_content]
+      # Add a specific test for thread pool timeout handling
+      it "handles thread pool timeout correctly" do
+        # Setup wait_for_termination to return false to simulate timeout
+        allow(pool).to receive(:wait_for_termination).and_return(false)
 
-        # Test the write_buffer method directly
-        expect(file_double).to receive(:puts).with(buffer_content)
-        generator.send(:write_buffer, file_double, buffer)
-        expect(buffer).to be_empty
+        # Expect kill to be called in this case
+        expect(pool).to receive(:kill)
+
+        generator.send(:generate_prompt)
       end
     end
 

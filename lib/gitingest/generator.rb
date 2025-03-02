@@ -65,9 +65,21 @@ module Gitingest
       "\.swiftpm/", "\.build/"
     ].freeze
 
+    # Optimization: pattern for dot files/directories
+    DOT_FILE_PATTERN = %r{(?-mix:(^\.|/\.))}
+
     # Maximum number of files to process to prevent memory overload
     MAX_FILES = 1000
-    BUFFER_SIZE = 100 # Write every 100 files to reduce I/O operations
+
+    # Optimization: increased buffer size to reduce I/O operations
+    BUFFER_SIZE = 250
+
+    # Optimization: thread-local buffer threshold
+    LOCAL_BUFFER_THRESHOLD = 50
+
+    # Add configurable threading options
+    DEFAULT_THREAD_COUNT = [Concurrent.processor_count, 8].min
+    DEFAULT_THREAD_TIMEOUT = 60 # seconds
 
     attr_reader :options, :client, :repo_files, :excluded_patterns, :logger
 
@@ -82,6 +94,8 @@ module Gitingest
     # @option options [Boolean] :quiet Reduce logging to errors only
     # @option options [Boolean] :verbose Increase logging verbosity
     # @option options [Logger] :logger Custom logger instance
+    # @option options [Integer] :threads Number of threads to use (default: auto-detected)
+    # @option options [Integer] :thread_timeout Seconds to wait for thread pool shutdown (default: 60)
     def initialize(options = {})
       @options = options
       @repo_files = []
@@ -121,6 +135,8 @@ module Gitingest
       @options[:output_file] ||= "#{@options[:repository].split("/").last}_prompt.txt"
       @options[:branch] ||= "main"
       @options[:exclude] ||= []
+      @options[:threads] ||= DEFAULT_THREAD_COUNT
+      @options[:thread_timeout] ||= DEFAULT_THREAD_TIMEOUT
       @excluded_patterns = DEFAULT_EXCLUDES + @options[:exclude]
     end
 
@@ -136,9 +152,10 @@ module Gitingest
       end
     end
 
-    # Convert exclusion patterns to regular expressions
+    # Optimization: Create a combined regex for faster exclusion checking
     def compile_excluded_patterns
-      @excluded_patterns = @excluded_patterns.map { |pattern| Regexp.new(pattern) }
+      patterns = @excluded_patterns.map { |pattern| "(#{pattern})" }
+      @combined_exclude_regex = Regexp.new("#{DOT_FILE_PATTERN.source}|#{patterns.join("|")}")
     end
 
     # Fetch repository contents and apply exclusion filters
@@ -180,47 +197,91 @@ module Gitingest
       end
     end
 
-    # Check if a file should be excluded based on its path
+    # Optimization: Optimized file exclusion check with combined regex
     def excluded_file?(path)
-      return true if path.start_with?(".") || path.split("/").any? { |part| part.start_with?(".") }
-
-      @excluded_patterns.any? { |pattern| path.match?(pattern) }
+      path.match?(@combined_exclude_regex)
     end
 
-    # Generate the consolidated prompt file
+    # Generate the consolidated prompt file with optimized threading
     def generate_prompt
       @logger.info "Generating prompt..."
+      @logger.debug "Using thread pool with #{@options[:threads]} threads"
+
       buffer = []
       progress = ProgressIndicator.new(@repo_files.size, @logger)
 
-      # Dynamic thread pool based on core count
-      pool = Concurrent::FixedThreadPool.new([Concurrent.processor_count, 5].min)
+      # Optimization: thread-local buffers to reduce mutex contention
+      thread_buffers = {}
+      mutex = Mutex.new
+      errors = []
+
+      # Dynamic thread pool based on configuration
+      pool = Concurrent::FixedThreadPool.new(@options[:threads])
+
+      # Group files by priority (smaller files first for better parallelism)
+      prioritized_files = prioritize_files(@repo_files)
 
       File.open(@options[:output_file], "w") do |file|
-        @repo_files.each_with_index do |repo_file, index|
+        prioritized_files.each_with_index do |repo_file, index|
           pool.post do
-            content = fetch_file_content_with_retry(repo_file.path)
-            result = format_file_content(repo_file.path, content)
+            # Optimization: Use thread-local buffers
+            thread_id = Thread.current.object_id
+            thread_buffers[thread_id] ||= []
+            local_buffer = thread_buffers[thread_id]
 
-            # Thread-safe buffer management
-            buffer_mutex.synchronize do
-              buffer << result
-              write_buffer(file, buffer) if buffer.size >= BUFFER_SIZE
+            begin
+              content = fetch_file_content_with_retry(repo_file.path)
+              result = format_file_content(repo_file.path, content)
+              local_buffer << result
+
+              # Optimization: Only acquire mutex when local buffer reaches threshold
+              if local_buffer.size >= LOCAL_BUFFER_THRESHOLD
+                mutex.synchronize do
+                  buffer.concat(local_buffer)
+                  write_buffer(file, buffer) if buffer.size >= BUFFER_SIZE
+                  local_buffer.clear
+                end
+              end
+
+              progress.update(index + 1)
+            rescue Octokit::Error => e
+              mutex.synchronize do
+                errors << "Error fetching #{repo_file.path}: #{e.message}"
+                @logger.error "Error fetching #{repo_file.path}: #{e.message}"
+              end
+            rescue StandardError => e
+              mutex.synchronize do
+                errors << "Unexpected error processing #{repo_file.path}: #{e.message}"
+                @logger.error "Unexpected error processing #{repo_file.path}: #{e.message}"
+              end
             end
-
-            progress.update(index + 1)
-          rescue Octokit::Error => e
-            @logger.error "Error fetching #{repo_file.path}: #{e.message}"
           end
         end
 
-        pool.shutdown
-        pool.wait_for_termination
+        begin
+          pool.shutdown
+          wait_success = pool.wait_for_termination(@options[:thread_timeout])
 
-        # Write any remaining files in buffer
-        buffer_mutex.synchronize do
+          unless wait_success
+            @logger.warn "Thread pool did not shut down within #{@options[:thread_timeout]} seconds, forcing termination"
+            pool.kill
+          end
+        rescue StandardError => e
+          @logger.error "Error during thread pool shutdown: #{e.message}"
+        end
+
+        # Process remaining files in thread-local buffers
+        mutex.synchronize do
+          thread_buffers.each_value do |local_buffer|
+            buffer.concat(local_buffer) unless local_buffer.empty?
+          end
           write_buffer(file, buffer) unless buffer.empty?
         end
+      end
+
+      if errors.any?
+        @logger.warn "Completed with #{errors.size} errors"
+        @logger.debug "First few errors: #{errors.first(3).join(", ")}" if @logger.debug?
       end
 
       @logger.info "Prompt generated and saved to #{@options[:output_file]}"
@@ -237,45 +298,122 @@ module Gitingest
       TEXT
     end
 
-    # Fetch file content with retry logic for rate limiting
-    def fetch_file_content_with_retry(path, retries = 3)
+    # Optimization: Fetch file content with exponential backoff for rate limiting
+    def fetch_file_content_with_retry(path, retries = 3, base_delay = 2)
       content = @client.contents(@options[:repository], path: path, ref: @options[:branch])
       Base64.decode64(content.content)
     rescue Octokit::TooManyRequests
       raise unless retries.positive?
 
-      sleep_time = 60 / retries
-      @logger.warn "Rate limit exceeded, waiting #{sleep_time} seconds..."
-      sleep(sleep_time)
-      fetch_file_content_with_retry(path, retries - 1)
+      # Optimization: Exponential backoff with jitter for better rate limit handling
+      delay = base_delay**(4 - retries) * (0.8 + 0.4 * rand)
+      @logger.warn "Rate limit exceeded, waiting #{delay.round(1)} seconds..."
+      sleep(delay)
+      fetch_file_content_with_retry(path, retries - 1, base_delay)
     end
 
     # Write buffer contents to file and clear buffer
     def write_buffer(file, buffer)
+      return if buffer.empty?
+
       file.puts(buffer.join)
       buffer.clear
     end
 
-    # Thread-safe mutex for buffer operations
-    def buffer_mutex
-      @buffer_mutex ||= Mutex.new
+    # Sort files by estimated processing priority
+    def prioritize_files(files)
+      # Sort files by estimated size (based on extension)
+      # This helps with better thread distribution - process small files first
+      files.sort_by do |file|
+        path = file.path.downcase
+        if path.end_with?(".md", ".txt", ".json", ".yaml", ".yml")
+          0  # Process documentation and config files first (usually small)
+        elsif path.end_with?(".rb", ".py", ".js", ".ts", ".go", ".java", ".c", ".cpp", ".h")
+          1  # Then process code files (medium size)
+        else
+          2  # Other files last
+        end
+      end
     end
   end
 
-  # Helper class for showing progress in CLI
+  # Helper class for showing progress in CLI with visual bar
   class ProgressIndicator
+    BAR_WIDTH = 30 # Width of the progress bar
+
     def initialize(total, logger)
       @total = total
       @logger = logger
       @last_percent = 0
+      @start_time = Time.now
+      @last_update_time = Time.now
+      @update_interval = 0.5 # Limit updates to twice per second
     end
 
+    # Update progress with visual bar
     def update(current)
-      percent = (current.to_f / @total * 100).round
-      return unless percent > @last_percent && ((percent % 5).zero? || current == @total)
+      # Avoid updating too frequently
+      now = Time.now
+      return if now - @last_update_time < @update_interval && current != @total
 
-      @logger.info "Processing: #{percent}% complete (#{current}/#{@total} files)"
+      @last_update_time = now
+      percent = (current.to_f / @total * 100).round
+
+      # Only update at meaningful increments or completion
+      return unless percent > @last_percent || current == @total
+
+      elapsed = now - @start_time
+
+      # Generate progress bar
+      progress_chars = (BAR_WIDTH * (current.to_f / @total)).round
+      bar = "[#{"|" * progress_chars}#{" " * (BAR_WIDTH - progress_chars)}]"
+
+      # Calculate ETA
+      eta_string = ""
+      if current > 1 && percent < 100
+        remaining = (elapsed / current) * (@total - current)
+        eta_string = " ETA: #{format_time(remaining)}"
+      end
+
+      # Calculate rate (files per second)
+      rate = begin
+        current / elapsed
+      rescue StandardError
+        0
+      end
+      rate_string = " (#{rate.round(1)} files/sec)"
+
+      # Clear line and print progress bar
+      print "\r\e[K" # Clear the line
+      print "#{bar} #{percent}% | #{current}/#{@total} files#{rate_string}#{eta_string}"
+      print "\n" if current == @total # Add newline when complete
+
+      # Also log to logger at less frequent intervals
+      if (percent % 10).zero? && percent != @last_percent || current == @total
+        @logger.info "Processing: #{percent}% complete (#{current}/#{@total} files)#{eta_string}"
+      end
+
       @last_percent = percent
+    end
+
+    private
+
+    # Format seconds into a human-readable time string
+    def format_time(seconds)
+      return "< 1s" if seconds < 1
+
+      case seconds
+      when 0...60
+        "#{seconds.round}s"
+      when 60...3600
+        minutes = (seconds / 60).floor
+        secs = (seconds % 60).round
+        "#{minutes}m #{secs}s"
+      else
+        hours = (seconds / 3600).floor
+        minutes = ((seconds % 3600) / 60).floor
+        "#{hours}h #{minutes}m"
+      end
     end
   end
 end

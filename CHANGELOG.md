@@ -1,39 +1,67 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+## [0.3.1] - 2025-03-03
+
+### Added
+- Introduced configurable threading options:
+  - `:threads` to specify the number of threads (default: auto-detected).
+  - `:thread_timeout` to define thread pool shutdown timeout (default: 60 seconds).
+- Implemented thread-local buffers to reduce mutex contention during file processing.
+- Added exponential backoff with jitter for rate-limited API requests.
+- Improved progress indicator with a visual progress bar and estimated time remaining.
+
+### Changed
+- Increased `BUFFER_SIZE` from 100 to 250 to reduce I/O operations.
+- Optimized file exclusion check using a combined regex for faster matching.
+- Improved thread pool efficiency by prioritizing smaller files first.
+- Enhanced error handling with detailed logging and thread-safe error collection.
+
+### Fixed
+- Ensured thread pool shutdown respects the configured timeout.
+- Resolved potential race conditions in file content retrieval.
+
+---
 
 ## [0.3.0] - 2025-03-02
-- Added `faraday-retry` gem dependency for better API rate limit handling
-- Implemented thread-safe buffer management with mutex locks
-- Added new `ProgressIndicator` class for better CLI progress reporting (showing percentages)
-- Improved memory efficiency with configurable buffer size
-- Enhanced code organization with dedicated methods for file content formatting
-- Added comprehensive method documentation and parameter descriptions
-- Optimized thread pool size calculation for better performance
-- Improved error handling in concurrent operations
+
+### Added
+- Added `faraday-retry` gem dependency for better API rate limit handling.
+- Implemented thread-safe buffer management with mutex locks.
+- Introduced `ProgressIndicator` class for enhanced CLI progress reporting, including percentages.
+- Improved memory efficiency with a configurable buffer size.
+- Enhanced code organization by introducing dedicated methods for file content formatting.
+- Added comprehensive method documentation and parameter descriptions.
+- Optimized thread pool size calculation for improved performance.
+- Improved error handling in concurrent operations.
+
+---
 
 ## [0.2.0] - 2025-03-02
-- Added support for quiet and verbose modes in the command-line interface
-- Added the ability to specify a custom output file for the prompt
-- Enhanced error handling with logging support
-- Added logging functionality with custom loggers
-- Introduced rate limit handling with retries for file fetching
-- Added repository branch support
-- Exclude specific file patterns via command-line arguments
-- Enforced a 1000 file limit to prevent memory overload
-- Updated version to 0.2.0
+
+### Added
+- Introduced support for quiet and verbose modes in the command-line interface.
+- Added the ability to specify a custom output file for the prompt.
+- Implemented enhanced error handling with logging support.
+- Introduced logging functionality with customizable loggers.
+- Added rate limit handling with retries for file fetching.
+- Implemented repository branch support.
+- Enabled exclusion of specific file patterns via command-line arguments.
+- Enforced a 1000-file limit to prevent memory overload.
+- Updated version to `0.2.0`.
+
+---
 
 ## [0.1.0] - 2025-03-02
 
 ### Added
-- Initial release of Gitingest
-- Core functionality to fetch and process GitHub repository files
-- Command-line interface for easy interaction
-- Smart file filtering with default exclusions for common non-code files
-- Concurrent processing for improved performance
-- Custom exclude patterns support
-- GitHub authentication via access tokens
-- Automatic rate limit handling with retry mechanism
-- Repository prompt generation with file separation markers
-- Support for custom branch selection
-- Custom output file naming options
+- Initial release of Gitingest.
+- Core functionality to fetch and process GitHub repository files.
+- Command-line interface for easy interaction.
+- Smart file filtering with default exclusions for common non-code files.
+- Concurrent processing for improved performance.
+- Custom exclude patterns support.
+- GitHub authentication via access tokens.
+- Automatic rate limit handling with a retry mechanism.
+- Repository prompt generation with file separation markers.
+- Support for custom branch selection.
+- Custom output file naming options.
