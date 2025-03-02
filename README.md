@@ -42,10 +42,10 @@ gitingest --repository username/repo --token YOUR_GITHUB_TOKEN --output output.t
 require 'gitingest'
 
 options = {
-  repository: 'username/repo',
+  repository: 'davidesantangelo/gitingest',
   token: 'your_github_token', # Optional
   output_file: 'output.txt', # Optional
-  branch: 'main', # Optional
+  branch: 'master', # Optional
   exclude: ['node_modules', '.*\.png$'] # Optional
 }
 
