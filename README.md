@@ -24,7 +24,26 @@ bundle exec rake install
 ### Command Line
 
 ```bash
-gitingest --repository username/repo --token YOUR_GITHUB_TOKEN --output output.txt
+# Basic usage (public repository)
+gitingest --repository user/repo 
+
+# With GitHub token for private repositories
+gitingest --repository user/repo --token YOUR_GITHUB_TOKEN
+
+# Specify a custom output file
+gitingest --repository user/repo --output my_prompt.txt
+
+# Specify a different branch
+gitingest --repository user/repo --branch develop
+
+# Exclude additional patterns
+gitingest --repository user/repo --exclude "*.md,docs/"
+
+# Quiet mode
+gitingest --repository user/repo --quiet
+
+# Verbose mode
+gitingest --repository user/repo --verbose
 ```
 
 #### Available Options
@@ -39,17 +58,32 @@ gitingest --repository username/repo --token YOUR_GITHUB_TOKEN --output output.t
 ### As a Library
 
 ```ruby
-require 'gitingest'
+require "gitingest"
 
-options = {
-  repository: 'davidesantangelo/gitingest',
-  token: 'your_github_token', # Optional
-  output_file: 'output.txt', # Optional
-  branch: 'master', # Optional
-  exclude: ['node_modules', '.*\.png$'] # Optional
-}
+# Basic usage
+generator = Gitingest::Generator.new(
+  repository: "user/repo",
+  token: "YOUR_GITHUB_TOKEN" # optional
+)
+generator.run
 
-generator = Gitingest::Generator.new(options)
+# With custom options
+generator = Gitingest::Generator.new(
+  repository: "user/repo",
+  token: "YOUR_GITHUB_TOKEN",
+  output_file: "my_prompt.txt",
+  branch: "develop",
+  exclude: ["*.md", "docs/"], 
+  quiet: true # or verbose: true
+)
+generator.run
+
+# With custom logger
+custom_logger = Logger.new("gitingest.log")
+generator = Gitingest::Generator.new(
+  repository: "user/repo",
+  logger: custom_logger
+)
 generator.run
 ```
 
@@ -73,6 +107,12 @@ By default, the generator excludes files and directories commonly ignored in rep
 - Archives (`*.zip`, `*.tar.gz`)
 - Dependency directories (`node_modules/`, `vendor/`)
 - Compiled and binary files (`*.pyc`, `*.class`, `*.exe`)
+
+## Limitations
+
+- To prevent memory overload, only the first 1000 files will be processed
+- API requests are subject to GitHub limits (60 requests/hour without token, 5000 requests/hour with token)
+- Private repositories require a GitHub personal access token
 
 ## Contributing
 

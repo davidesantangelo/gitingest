@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2025-03-02
+- Added support for quiet and verbose modes in the command-line interface
+- Added the ability to specify a custom output file for the prompt
+- Enhanced error handling with logging support
+- Added logging functionality with custom loggers
+- Introduced rate limit handling with retries for file fetching
+- Added repository branch support
+- Exclude specific file patterns via command-line arguments
+- Enforced a 1000 file limit to prevent memory overload
+- Updated version to 0.2.0
+
 ## [0.1.0] - 2025-03-02
 
 ### Added

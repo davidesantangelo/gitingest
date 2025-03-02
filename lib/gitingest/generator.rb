@@ -4,6 +4,7 @@ require "octokit"
 require "base64"
 require "fileutils"
 require "concurrent"
+require "logger"
 
 module Gitingest
   class Generator
@@ -67,15 +68,29 @@ module Gitingest
     # Maximum number of files to process to prevent memory overload
     MAX_FILES = 1000
 
-    attr_reader :options, :client, :repo_files, :excluded_patterns
+    attr_reader :options, :client, :repo_files, :excluded_patterns, :logger
 
     def initialize(options = {})
       @options = options
       @repo_files = []
       @excluded_patterns = []
+      setup_logger
       validate_options
       configure_client
       compile_excluded_patterns
+    end
+
+    def setup_logger
+      @logger = @options[:logger] || Logger.new($stdout)
+      @logger.level = if @options[:quiet]
+                        Logger::ERROR
+                      elsif @options[:verbose]
+                        Logger::DEBUG
+                      else
+                        Logger::INFO
+                      end
+      # Semplifica il formato del logger per la riga di comando
+      @logger.formatter = proc { |severity, _, _, msg| "#{severity == "INFO" ? "" : "[#{severity}] "}#{msg}\n" }
     end
 
     ### Option Validation
@@ -93,10 +108,10 @@ module Gitingest
       @client = @options[:token] ? Octokit::Client.new(access_token: @options[:token]) : Octokit::Client.new
 
       if @options[:token]
-        puts "Using provided GitHub token for authentication"
+        @logger.info "Using provided GitHub token for authentication"
       else
-        puts "Warning: No token provided. API rate limits will be restricted and private repositories will be inaccessible."
-        puts "For better results, provide a GitHub token with the --token option."
+        @logger.warn "Warning: No token provided. API rate limits will be restricted and private repositories will be inaccessible."
+        @logger.warn "For better results, provide a GitHub token with the --token option."
       end
     end
 
@@ -106,7 +121,7 @@ module Gitingest
 
     ### Fetch Repository Contents
     def fetch_repository_contents
-      puts "Fetching repository: #{@options[:repository]} (branch: #{@options[:branch]})"
+      @logger.info "Fetching repository: #{@options[:repository]} (branch: #{@options[:branch]})"
       begin
         # First validate authentication and repository access
         validate_repository_access
@@ -115,10 +130,10 @@ module Gitingest
         @repo_files = repo_tree.tree.select { |item| item.type == "blob" && !excluded_file?(item.path) }
 
         if @repo_files.size > MAX_FILES
-          puts "Warning: Found #{@repo_files.size} files, limited to #{MAX_FILES}."
+          @logger.warn "Warning: Found #{@repo_files.size} files, limited to #{MAX_FILES}."
           @repo_files = @repo_files.first(MAX_FILES)
         end
-        puts "Found #{@repo_files.size} files after exclusion filters"
+        @logger.info "Found #{@repo_files.size} files after exclusion filters"
       rescue Octokit::Unauthorized
         raise "Authentication error: Invalid or expired GitHub token. Please provide a valid token."
       rescue Octokit::NotFound
@@ -154,7 +169,7 @@ module Gitingest
 
     ### Generate Prompt
     def generate_prompt
-      puts "Generating prompt..."
+      @logger.info "Generating prompt..."
       Concurrent::Array.new(@repo_files)
       buffer = []
       buffer_size = 100 # Write every 100 files to reduce I/O
@@ -177,14 +192,14 @@ module Gitingest
             write_buffer(file, buffer) if buffer.size >= buffer_size
             print "\rProcessing: #{index + 1}/#{@repo_files.size} files"
           rescue Octokit::Error => e
-            puts "\nError fetching #{repo_file.path}: #{e.message}"
+            @logger.error "Error fetching #{repo_file.path}: #{e.message}"
           end
         end
         pool.shutdown
         pool.wait_for_termination
         write_buffer(file, buffer) unless buffer.empty?
       end
-      puts "\nPrompt generated and saved to #{@options[:output_file]}"
+      @logger.info "\nPrompt generated and saved to #{@options[:output_file]}"
     end
 
     def fetch_file_content_with_retry(path, retries = 3)
@@ -194,7 +209,7 @@ module Gitingest
       raise unless retries.positive?
 
       sleep_time = 60 / retries
-      puts "Rate limit exceeded, waiting #{sleep_time} seconds..."
+      @logger.warn "Rate limit exceeded, waiting #{sleep_time} seconds..."
       sleep(sleep_time)
       fetch_file_content_with_retry(path, retries - 1)
     end
