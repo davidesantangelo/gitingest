@@ -1,166 +1,304 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gitingest - GitHub Repository Fetcher and Prompt Generator</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/3.3.5/tailwind.min.js"></script>
-    <style type="text/tailwindcss">
-      :root {
-        --header-color: #f0f6fc;
-      }
-      
-      @layer components {
-        .btn {
-          @apply px-4 py-2 bg-emerald-600 text-white font-semibold rounded-md hover:bg-emerald-700 transition-colors inline-block;
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown.min.css">
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --text-color: #c9d1d9;
+            --link-color: #58a6ff;
+            --header-color: #f0f6fc;
+            --border-color: #30363d;
+            --code-bg: #161b22;
+            --code-block-bg: #0d1117;
+            --accent-color: #238636;
+            --accent-hover: #2ea043;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .container {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 30px;
+            margin-bottom: 20px;
+            background-color: #0d1117;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .logo {
+            width: 60px;
+            height: 60px;
+            margin-right: 15px;
+            background-color: var(--accent-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        h1, h2, h3 {
+            color: var(--header-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-top: 24px;
+            margin-bottom: 16px;
+        }
+
+        h1 {
+            font-size: 2em;
+            margin-bottom: 0.5em;
+            border-bottom: none;
+            padding-bottom: 0;
         }
         
-        .code-block {
-          @apply bg-gray-900 rounded-md p-4 overflow-auto border border-gray-700 my-4 font-mono text-sm;
+        .header h1 {
+            margin: 0;
+            line-height: 1.3;
         }
-        
-        .code-inline {
-          @apply bg-gray-800 rounded px-1.5 py-0.5 font-mono text-sm;
+
+        a {
+            color: var(--link-color);
+            text-decoration: none;
         }
-      }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background-color: var(--code-bg);
+            border-radius: 3px;
+            padding: 2px 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background-color: var(--code-block-bg);
+            border-radius: 6px;
+            padding: 16px;
+            overflow: auto;
+            border: 1px solid var(--border-color);
+            margin: 16px 0;
+        }
+
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            border-radius: 0;
+            white-space: pre;
+        }
+
+        ul, ol {
+            padding-left: 2em;
+        }
+
+        .button {
+            display: inline-block;
+            background-color: var(--accent-color);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 600;
+            margin: 8px 0;
+        }
+
+        .button:hover {
+            background-color: var(--accent-hover);
+            text-decoration: none;
+        }
+
+        .version-badge {
+            display: inline-block;
+            background-color: #238636;
+            color: white;
+            border-radius: 20px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        footer {
+            margin-top: 40px;
+            text-align: center;
+            color: #8b949e;
+            font-size: 0.9em;
+            border-top: 1px solid var(--border-color);
+            padding-top: 20px;
+        }
+
+        .changelog {
+            margin-top: 30px;
+        }
+
+        .changelog-item {
+            margin-bottom: 24px;
+        }
+
+        .changelog-version {
+            font-weight: bold;
+            color: var(--header-color);
+        }
+
+        .changelog-date {
+            color: #8b949e;
+            font-size: 0.9em;
+        }
+
+        .changelog-list {
+            margin-top: 10px;
+        }
     </style>
 </head>
-<body class="bg-gray-950 text-gray-300 antialiased">
-    <div class="max-w-4xl mx-auto px-4 py-8">
-        <div class="border border-gray-800 rounded-lg p-6 mb-6 bg-gray-900">
-            <!-- Header section -->
-            <div class="flex items-center mb-8">
-                <div class="w-16 h-16 bg-emerald-600 rounded-full flex items-center justify-center text-white text-2xl font-bold mr-4">G</div>
-                <div>
-                    <h1 class="text-3xl font-bold text-white m-0">Gitingest <span class="ml-2 bg-emerald-600 text-white text-xs py-1 px-2 rounded-full">v0.3.0</span></h1>
-                    <p class="text-gray-400">A Ruby gem that fetches files from a GitHub repository and generates a consolidated text prompt for LLMs</p>
-                </div>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">G</div>
+            <div>
+                <h1>Gitingest <span class="version-badge">v0.3.0</span></h1>
+                <p>A Ruby gem that fetches files from a GitHub repository and generates a consolidated text prompt for LLMs</p>
             </div>
-            
-            <div class="space-x-3 mb-8">
-                <a href="https://github.com/davidesantangelo/gitingest" class="btn">View on GitHub</a>
-                <a href="https://rubygems.org/gems/gitingest" class="btn">View on RubyGems</a>
-            </div>
-            
-            <!-- Installation section -->
-            <h2 class="text-2xl font-bold text-white mt-8 mb-4 pb-2 border-b border-gray-800">Installation</h2>
-            
-            <h3 class="text-xl font-semibold text-white mt-6 mb-3">From RubyGems</h3>
-            <div class="code-block">
-                <code>gem install gitingest</code>
-            </div>
-            
-            <h3 class="text-xl font-semibold text-white mt-6 mb-3">From Source</h3>
-            <div class="code-block">
-                <code>git clone https://github.com/davidesantangelo/gitingest.git<br>
-cd gitingest<br>
-bundle install<br>
-bundle exec rake install</code>
-            </div>
-            
-            <!-- Usage section -->
-            <h2 class="text-2xl font-bold text-white mt-8 mb-4 pb-2 border-b border-gray-800">Usage</h2>
-            
-            <h3 class="text-xl font-semibold text-white mt-6 mb-3">Command Line</h3>
-            <div class="code-block">
-                <code># Basic usage (public repository)<br>
-gitingest --repository user/repo<br><br>
-# With GitHub token for private repositories<br>
-gitingest --repository user/repo --token YOUR_GITHUB_TOKEN<br><br>
-# Specify a custom output file<br>
-gitingest --repository user/repo --output my_prompt.txt<br><br>
-# Specify a different branch<br>
-gitingest --repository user/repo --branch develop<br><br>
-# Exclude additional patterns<br>
-gitingest --repository user/repo --exclude "*.md,docs/"<br><br>
-# Quiet mode<br>
-gitingest --repository user/repo --quiet<br><br>
-# Verbose mode<br>
-gitingest --repository user/repo --verbose</code>
-            </div>
-            
-            <h4 class="text-lg font-semibold text-white mt-6 mb-3">Available Options</h4>
-            <ul class="list-disc ml-6 space-y-2">
-                <li><span class="code-inline">-r, --repository REPO</span>: GitHub repository (username/repo) [Required]</li>
-                <li><span class="code-inline">-t, --token TOKEN</span>: GitHub personal access token [Optional but recommended]</li>
-                <li><span class="code-inline">-o, --output FILE</span>: Output file for the prompt [Default: reponame_prompt.txt]</li>
-                <li><span class="code-inline">-e, --exclude PATTERN</span>: File patterns to exclude (comma separated)</li>
-                <li><span class="code-inline">-b, --branch BRANCH</span>: Repository branch [Default: main]</li>
-                <li><span class="code-inline">-h, --help</span>: Show help message</li>
-            </ul>
-            
-            <h3 class="text-xl font-semibold text-white mt-6 mb-3">As a Library</h3>
-            <div class="code-block">
-                <code>require "gitingest"<br><br>
-# Basic usage<br>
-generator = Gitingest::Generator.new(<br>
-&nbsp;&nbsp;repository: "user/repo",<br>
-&nbsp;&nbsp;token: "YOUR_GITHUB_TOKEN" # optional<br>
-)<br>
-generator.run<br><br>
-# With custom options<br>
-generator = Gitingest::Generator.new(<br>
-&nbsp;&nbsp;repository: "user/repo",<br>
-&nbsp;&nbsp;token: "YOUR_GITHUB_TOKEN",<br>
-&nbsp;&nbsp;output_file: "my_prompt.txt",<br>
-&nbsp;&nbsp;branch: "develop",<br>
-&nbsp;&nbsp;exclude: ["*.md", "docs/"], <br>
-&nbsp;&nbsp;quiet: true # or verbose: true<br>
-)<br>
-generator.run<br><br>
-# With custom logger<br>
-custom_logger = Logger.new("gitingest.log")<br>
-generator = Gitingest::Generator.new(<br>
-&nbsp;&nbsp;repository: "user/repo",<br>
-&nbsp;&nbsp;logger: custom_logger<br>
-)<br>
-generator.run</code>
-            </div>
-            
-            <!-- Features section -->
-            <h2 class="text-2xl font-bold text-white mt-8 mb-4 pb-2 border-b border-gray-800">Features</h2>
-            <ul class="list-disc ml-6 space-y-2">
-                <li>Fetches all files from a GitHub repository based on the given branch</li>
-                <li>Automatically excludes common binary files and system files by default</li>
-                <li>Allows custom exclusion patterns for specific file extensions or directories</li>
-                <li>Uses concurrent processing for faster downloads</li>
-                <li>Handles GitHub API rate limiting with automatic retry</li>
-                <li>Generates a clean, formatted output file with file paths and content</li>
-            </ul>
-            
-            <!-- Default Exclusion Patterns section -->
-            <h2 class="text-2xl font-bold text-white mt-8 mb-4 pb-2 border-b border-gray-800">Default Exclusion Patterns</h2>
-            <p class="mb-3">By default, the generator excludes files and directories commonly ignored in repositories, such as:</p>
-            <ul class="list-disc ml-6 space-y-2">
-                <li>Version control files (<span class="code-inline">.git/</span>, <span class="code-inline">.svn/</span>)</li>
-                <li>System files (<span class="code-inline">.DS_Store</span>, <span class="code-inline">Thumbs.db</span>)</li>
-                <li>Log files (<span class="code-inline">*.log</span>, <span class="code-inline">*.bak</span>)</li>
-                <li>Images and media files (<span class="code-inline">*.png</span>, <span class="code-inline">*.jpg</span>, <span class="code-inline">*.mp3</span>)</li>
-                <li>Archives (<span class="code-inline">*.zip</span>, <span class="code-inline">*.tar.gz</span>)</li>
-                <li>Dependency directories (<span class="code-inline">node_modules/</span>, <span class="code-inline">vendor/</span>)</li>
-                <li>Compiled and binary files (<span class="code-inline">*.pyc</span>, <span class="code-inline">*.class</span>, <span class="code-inline">*.exe</span>)</li>
-            </ul>
-            
-            <!-- Limitations section -->
-            <h2 class="text-2xl font-bold text-white mt-8 mb-4 pb-2 border-b border-gray-800">Limitations</h2>
-            <ul class="list-disc ml-6 space-y-2">
-                <li>To prevent memory overload, only the first 1000 files will be processed</li>
-                <li>API requests are subject to GitHub limits (60 requests/hour without token, 5000 requests/hour with token)</li>
-                <li>Private repositories require a GitHub personal access token</li>
-            </ul>
+        </div>
+        
+        <a href="https://github.com/davidesantangelo/gitingest" class="button">View on GitHub</a>
+        <a href="https://rubygems.org/gems/gitingest" class="button">View on RubyGems</a>
+        
+        <h2>Installation</h2>
+        
+        <h3>From RubyGems</h3>
+        <pre><code>gem install gitingest</code></pre>
+        
+        <h3>From Source</h3>
+        <pre><code>git clone https://github.com/davidesantangelo/gitingest.git
+cd gitingest
+bundle install
+bundle exec rake install</code></pre>
+        
+        <h2>Usage</h2>
+        
+        <h3>Command Line</h3>
+        <pre><code># Basic usage (public repository)
+gitingest --repository user/repo 
 
-            <!-- Changelog section -->
-            <h2 class="text-2xl font-bold text-white mt-8 mb-4 pb-2 border-b border-gray-800">Changelog</h2>
+# With GitHub token for private repositories
+gitingest --repository user/repo --token YOUR_GITHUB_TOKEN
+
+# Specify a custom output file
+gitingest --repository user/repo --output my_prompt.txt
+
+# Specify a different branch
+gitingest --repository user/repo --branch develop
+
+# Exclude additional patterns
+gitingest --repository user/repo --exclude "*.md,docs/"
+
+# Quiet mode
+gitingest --repository user/repo --quiet
+
+# Verbose mode
+gitingest --repository user/repo --verbose</code></pre>
+        
+        <h4>Available Options</h4>
+        <ul>
+            <li><code>-r, --repository REPO</code>: GitHub repository (username/repo) [Required]</li>
+            <li><code>-t, --token TOKEN</code>: GitHub personal access token [Optional but recommended]</li>
+            <li><code>-o, --output FILE</code>: Output file for the prompt [Default: reponame_prompt.txt]</li>
+            <li><code>-e, --exclude PATTERN</code>: File patterns to exclude (comma separated)</li>
+            <li><code>-b, --branch BRANCH</code>: Repository branch [Default: main]</li>
+            <li><code>-h, --help</code>: Show help message</li>
+        </ul>
+        
+        <h3>As a Library</h3>
+        <pre><code>require "gitingest"
+
+# Basic usage
+generator = Gitingest::Generator.new(
+  repository: "user/repo",
+  token: "YOUR_GITHUB_TOKEN" # optional
+)
+generator.run
+
+# With custom options
+generator = Gitingest::Generator.new(
+  repository: "user/repo",
+  token: "YOUR_GITHUB_TOKEN",
+  output_file: "my_prompt.txt",
+  branch: "develop",
+  exclude: ["*.md", "docs/"], 
+  quiet: true # or verbose: true
+)
+generator.run
+
+# With custom logger
+custom_logger = Logger.new("gitingest.log")
+generator = Gitingest::Generator.new(
+  repository: "user/repo",
+  logger: custom_logger
+)
+generator.run</code></pre>
+        
+        <h2>Features</h2>
+        <ul>
+            <li>Fetches all files from a GitHub repository based on the given branch</li>
+            <li>Automatically excludes common binary files and system files by default</li>
+            <li>Allows custom exclusion patterns for specific file extensions or directories</li>
+            <li>Uses concurrent processing for faster downloads</li>
+            <li>Handles GitHub API rate limiting with automatic retry</li>
+            <li>Generates a clean, formatted output file with file paths and content</li>
+        </ul>
+        
+        <h2>Default Exclusion Patterns</h2>
+        <p>By default, the generator excludes files and directories commonly ignored in repositories, such as:</p>
+        <ul>
+            <li>Version control files (<code>.git/</code>, <code>.svn/</code>)</li>
+            <li>System files (<code>.DS_Store</code>, <code>Thumbs.db</code>)</li>
+            <li>Log files (<code>*.log</code>, <code>*.bak</code>)</li>
+            <li>Images and media files (<code>*.png</code>, <code>*.jpg</code>, <code>*.mp3</code>)</li>
+            <li>Archives (<code>*.zip</code>, <code>*.tar.gz</code>)</li>
+            <li>Dependency directories (<code>node_modules/</code>, <code>vendor/</code>)</li>
+            <li>Compiled and binary files (<code>*.pyc</code>, <code>*.class</code>, <code>*.exe</code>)</li>
+        </ul>
+        
+        <h2>Limitations</h2>
+        <ul>
+            <li>To prevent memory overload, only the first 1000 files will be processed</li>
+            <li>API requests are subject to GitHub limits (60 requests/hour without token, 5000 requests/hour with token)</li>
+            <li>Private repositories require a GitHub personal access token</li>
+        </ul>
+
+        <div class="changelog">
+            <h2>Changelog</h2>
             
-            <div class="mb-6">
-                <div class="mb-2">
-                    <span class="font-bold text-white">v0.3.0</span>
-                    <span class="text-gray-500 text-sm ml-2">- March 2, 2025</span>
+            <div class="changelog-item">
+                <div>
+                    <span class="changelog-version">v0.3.0</span>
+                    <span class="changelog-date">- March 2, 2025</span>
                 </div>
-                <ul class="list-disc ml-6 space-y-1 text-gray-400">
-                    <li>Added <span class="code-inline">faraday-retry</span> gem dependency for better API rate limit handling</li>
+                <ul class="changelog-list">
+                    <li>Added <code>faraday-retry</code> gem dependency for better API rate limit handling</li>
                     <li>Implemented thread-safe buffer management with mutex locks</li>
-                    <li>Added new <span class="code-inline">ProgressIndicator</span> class for better CLI progress reporting (showing percentages)</li>
+                    <li>Added new <code>ProgressIndicator</code> class for better CLI progress reporting (showing percentages)</li>
                     <li>Improved memory efficiency with configurable buffer size</li>
                     <li>Enhanced code organization with dedicated methods for file content formatting</li>
                     <li>Added comprehensive method documentation and parameter descriptions</li>
@@ -169,12 +307,12 @@ generator.run</code>
                 </ul>
             </div>
             
-            <div class="mb-6">
-                <div class="mb-2">
-                    <span class="font-bold text-white">v0.2.0</span>
-                    <span class="text-gray-500 text-sm ml-2">- March 2, 2025</span>
+            <div class="changelog-item">
+                <div>
+                    <span class="changelog-version">v0.2.0</span>
+                    <span class="changelog-date">- March 2, 2025</span>
                 </div>
-                <ul class="list-disc ml-6 space-y-1 text-gray-400">
+                <ul class="changelog-list">
                     <li>Added support for quiet and verbose modes in the command-line interface</li>
                     <li>Added the ability to specify a custom output file for the prompt</li>
                     <li>Enhanced error handling with logging support</li>
@@ -186,12 +324,12 @@ generator.run</code>
                 </ul>
             </div>
             
-            <div class="mb-6">
-                <div class="mb-2">
-                    <span class="font-bold text-white">v0.1.0</span>
-                    <span class="text-gray-500 text-sm ml-2">- March 2, 2025</span>
+            <div class="changelog-item">
+                <div>
+                    <span class="changelog-version">v0.1.0</span>
+                    <span class="changelog-date">- March 2, 2025</span>
                 </div>
-                <ul class="list-disc ml-6 space-y-1 text-gray-400">
+                <ul class="changelog-list">
                     <li>Initial release of Gitingest</li>
                     <li>Core functionality to fetch and process GitHub repository files</li>
                     <li>Command-line interface for easy interaction</li>
@@ -205,25 +343,21 @@ generator.run</code>
                     <li>Custom output file naming options</li>
                 </ul>
             </div>
-            
-            <!-- Contributing section -->
-            <h2 class="text-2xl font-bold text-white mt-8 mb-4 pb-2 border-b border-gray-800">Contributing</h2>
-            <p>Bug reports and pull requests are welcome on GitHub at <a href="https://github.com/davidesantangelo/gitingest" class="text-blue-400 hover:underline">https://github.com/davidesantangelo/gitingest</a>.</p>
-            
-            <!-- Acknowledgements section -->
-            <h2 class="text-2xl font-bold text-white mt-8 mb-4 pb-2 border-b border-gray-800">Acknowledgements</h2>
-            <p>Inspired by <a href="https://github.com/cyclotruc/gitingest" class="text-blue-400 hover:underline"><span class="code-inline">cyclotruc/gitingest</span></a>.</p>
-            
-            <!-- License section -->
-            <h2 class="text-2xl font-bold text-white mt-8 mb-4 pb-2 border-b border-gray-800">License</h2>
-            <p>The gem is available as open source under the terms of the <a href="https://opensource.org/licenses/MIT" class="text-blue-400 hover:underline">MIT License</a>.</p>
         </div>
         
-        <!-- Footer -->
-        <footer class="text-center text-gray-500 text-sm mt-8 pt-6 border-t border-gray-800">
-            <p>© 2025 David Santangelo</p>
-            <p class="mt-2">Last updated: March 2, 2025</p>
-        </footer>
+        <h2>Contributing</h2>
+        <p>Bug reports and pull requests are welcome on GitHub at <a href="https://github.com/davidesantangelo/gitingest">https://github.com/davidesantangelo/gitingest</a>.</p>
+        
+        <h2>Acknowledgements</h2>
+        <p>Inspired by <a href="https://github.com/cyclotruc/gitingest"><code>cyclotruc/gitingest</code></a>.</p>
+        
+        <h2>License</h2>
+        <p>The gem is available as open source under the terms of the <a href="https://opensource.org/licenses/MIT">MIT License</a>.</p>
     </div>
+    
+    <footer>
+        <p>© 2025 David Santangelo</p>
+        <p>Last updated: March 2, 2025</p>
+    </footer>
 </body>
 </html>
