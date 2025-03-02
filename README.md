@@ -77,6 +77,10 @@ By default, Gitingest excludes the following files and directories:
 
 Bug reports and pull requests are welcome on GitHub at https://github.com/davidesantangelo/gitingest.
 
+## Acknowledgements
+
+Inspired by [`cyclotruc/gitingest`](https://github.com/cyclotruc/gitingest).
+
 ## License
 
 The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
