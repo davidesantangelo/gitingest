@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2025-03-02
+- Added `faraday-retry` gem dependency for better API rate limit handling
+- Implemented thread-safe buffer management with mutex locks
+- Added new `ProgressIndicator` class for better CLI progress reporting (showing percentages)
+- Improved memory efficiency with configurable buffer size
+- Enhanced code organization with dedicated methods for file content formatting
+- Added comprehensive method documentation and parameter descriptions
+- Optimized thread pool size calculation for better performance
+- Improved error handling in concurrent operations
+
 ## [0.2.0] - 2025-03-02
 - Added support for quiet and verbose modes in the command-line interface
 - Added the ability to specify a custom output file for the prompt

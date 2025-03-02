@@ -67,9 +67,21 @@ module Gitingest
 
     # Maximum number of files to process to prevent memory overload
     MAX_FILES = 1000
+    BUFFER_SIZE = 100 # Write every 100 files to reduce I/O operations
 
     attr_reader :options, :client, :repo_files, :excluded_patterns, :logger
 
+    # Initialize a new Generator with the given options
+    #
+    # @param options [Hash] Configuration options
+    # @option options [String] :repository GitHub repository in format "username/repo"
+    # @option options [String] :token GitHub personal access token
+    # @option options [String] :branch Repository branch (default: "main")
+    # @option options [String] :output_file Output file path
+    # @option options [Array<String>] :exclude Additional patterns to exclude
+    # @option options [Boolean] :quiet Reduce logging to errors only
+    # @option options [Boolean] :verbose Increase logging verbosity
+    # @option options [Logger] :logger Custom logger instance
     def initialize(options = {})
       @options = options
       @repo_files = []
@@ -80,6 +92,15 @@ module Gitingest
       compile_excluded_patterns
     end
 
+    # Main execution method
+    def run
+      fetch_repository_contents
+      generate_prompt
+    end
+
+    private
+
+    # Set up logging based on verbosity options
     def setup_logger
       @logger = @options[:logger] || Logger.new($stdout)
       @logger.level = if @options[:quiet]
@@ -89,11 +110,11 @@ module Gitingest
                       else
                         Logger::INFO
                       end
-      # Semplifica il formato del logger per la riga di comando
+      # Simplify logger format for command line usage
       @logger.formatter = proc { |severity, _, _, msg| "#{severity == "INFO" ? "" : "[#{severity}] "}#{msg}\n" }
     end
 
-    ### Option Validation
+    # Validate and set default options
     def validate_options
       raise ArgumentError, "Repository is required" unless @options[:repository]
 
@@ -103,7 +124,7 @@ module Gitingest
       @excluded_patterns = DEFAULT_EXCLUDES + @options[:exclude]
     end
 
-    ### Client Configuration
+    # Configure the GitHub API client
     def configure_client
       @client = @options[:token] ? Octokit::Client.new(access_token: @options[:token]) : Octokit::Client.new
 
@@ -115,17 +136,16 @@ module Gitingest
       end
     end
 
+    # Convert exclusion patterns to regular expressions
     def compile_excluded_patterns
       @excluded_patterns = @excluded_patterns.map { |pattern| Regexp.new(pattern) }
     end
 
-    ### Fetch Repository Contents
+    # Fetch repository contents and apply exclusion filters
     def fetch_repository_contents
       @logger.info "Fetching repository: #{@options[:repository]} (branch: #{@options[:branch]})"
       begin
-        # First validate authentication and repository access
         validate_repository_access
-
         repo_tree = @client.tree(@options[:repository], @options[:branch], recursive: true)
         @repo_files = repo_tree.tree.select { |item| item.type == "blob" && !excluded_file?(item.path) }
 
@@ -143,8 +163,8 @@ module Gitingest
       end
     end
 
+    # Validate repository and branch access
     def validate_repository_access
-      # Check if we can access the repository
       begin
         @client.repository(@options[:repository])
       rescue Octokit::Unauthorized
@@ -153,7 +173,6 @@ module Gitingest
         raise "Repository '#{@options[:repository]}' not found or is private. Check the repository name or provide a valid token."
       end
 
-      # Check if the branch exists
       begin
         @client.branch(@options[:repository], @options[:branch])
       rescue Octokit::NotFound
@@ -161,47 +180,64 @@ module Gitingest
       end
     end
 
+    # Check if a file should be excluded based on its path
     def excluded_file?(path)
       return true if path.start_with?(".") || path.split("/").any? { |part| part.start_with?(".") }
 
       @excluded_patterns.any? { |pattern| path.match?(pattern) }
     end
 
-    ### Generate Prompt
+    # Generate the consolidated prompt file
     def generate_prompt
       @logger.info "Generating prompt..."
-      Concurrent::Array.new(@repo_files)
       buffer = []
-      buffer_size = 100 # Write every 100 files to reduce I/O
+      progress = ProgressIndicator.new(@repo_files.size, @logger)
 
       # Dynamic thread pool based on core count
-      pool = Concurrent::FixedThreadPool.new([Concurrent.processor_count, 5].max)
+      pool = Concurrent::FixedThreadPool.new([Concurrent.processor_count, 5].min)
 
       File.open(@options[:output_file], "w") do |file|
         @repo_files.each_with_index do |repo_file, index|
           pool.post do
             content = fetch_file_content_with_retry(repo_file.path)
-            result = <<~TEXT
-              ================================================================
-              File: #{repo_file.path}
-              ================================================================
-              #{content}
+            result = format_file_content(repo_file.path, content)
 
-            TEXT
-            buffer << result
-            write_buffer(file, buffer) if buffer.size >= buffer_size
-            print "\rProcessing: #{index + 1}/#{@repo_files.size} files"
+            # Thread-safe buffer management
+            buffer_mutex.synchronize do
+              buffer << result
+              write_buffer(file, buffer) if buffer.size >= BUFFER_SIZE
+            end
+
+            progress.update(index + 1)
           rescue Octokit::Error => e
             @logger.error "Error fetching #{repo_file.path}: #{e.message}"
           end
         end
+
         pool.shutdown
         pool.wait_for_termination
-        write_buffer(file, buffer) unless buffer.empty?
+
+        # Write any remaining files in buffer
+        buffer_mutex.synchronize do
+          write_buffer(file, buffer) unless buffer.empty?
+        end
       end
-      @logger.info "\nPrompt generated and saved to #{@options[:output_file]}"
+
+      @logger.info "Prompt generated and saved to #{@options[:output_file]}"
     end
 
+    # Format a file's content for the prompt
+    def format_file_content(path, content)
+      <<~TEXT
+        ================================================================
+        File: #{path}
+        ================================================================
+        #{content}
+
+      TEXT
+    end
+
+    # Fetch file content with retry logic for rate limiting
     def fetch_file_content_with_retry(path, retries = 3)
       content = @client.contents(@options[:repository], path: path, ref: @options[:branch])
       Base64.decode64(content.content)
@@ -214,15 +250,32 @@ module Gitingest
       fetch_file_content_with_retry(path, retries - 1)
     end
 
+    # Write buffer contents to file and clear buffer
     def write_buffer(file, buffer)
       file.puts(buffer.join)
       buffer.clear
     end
 
-    ### Main Execution
-    def run
-      fetch_repository_contents
-      generate_prompt
+    # Thread-safe mutex for buffer operations
+    def buffer_mutex
+      @buffer_mutex ||= Mutex.new
+    end
+  end
+
+  # Helper class for showing progress in CLI
+  class ProgressIndicator
+    def initialize(total, logger)
+      @total = total
+      @logger = logger
+      @last_percent = 0
+    end
+
+    def update(current)
+      percent = (current.to_f / @total * 100).round
+      return unless percent > @last_percent && ((percent % 5).zero? || current == @total)
+
+      @logger.info "Processing: #{percent}% complete (#{current}/#{@total} files)"
+      @last_percent = percent
     end
   end
 end

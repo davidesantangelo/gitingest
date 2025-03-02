@@ -40,6 +40,7 @@ Gem::Specification.new do |spec|
 
   # Dependencies
   spec.add_dependency "concurrent-ruby", "~> 1.1"
+  spec.add_dependency "faraday-retry", "~> 2.0" # Add this line
   spec.add_dependency "octokit", "~> 5.0"
   spec.add_dependency "optparse", "~> 0.1"
 
