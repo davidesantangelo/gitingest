@@ -64,14 +64,15 @@ generator.run
 
 ## Default Exclusion Patterns
 
-By default, Gitingest excludes the following files and directories:
+By default, the generator excludes files and directories commonly ignored in repositories, such as:
 
-- `.git/`, `.github/`, `.gitignore`, `.DS_Store`
-- Log files: `.*\.log$`
-- Image files: `.*\.png$`, `.*\.jpg$`, `.*\.jpeg$`, `.*\.gif$`, `.*\.svg$`
-- Document files: `.*\.pdf$`
-- Archive files: `.*\.zip$`, `.*\.tar\.gz$`
-- Dependency directories: `node_modules/`, `vendor/`
+- Version control files (`.git/`, `.svn/`)
+- System files (`.DS_Store`, `Thumbs.db`)
+- Log files (`*.log`, `*.bak`)
+- Images and media files (`*.png`, `*.jpg`, `*.mp3`)
+- Archives (`*.zip`, `*.tar.gz`)
+- Dependency directories (`node_modules/`, `vendor/`)
+- Compiled and binary files (`*.pyc`, `*.class`, `*.exe`)
 
 ## Contributing
 
