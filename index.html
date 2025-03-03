@@ -6,6 +6,7 @@
     <title>Gitingest - GitHub Repository Fetcher and Prompt Generator</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown.min.css">
     <style>
+        /* Styles remain the same */
         :root {
             --bg-color: #0d1117;
             --text-color: #c9d1d9;
@@ -176,7 +177,7 @@
         <div class="header">
             <div class="logo">G</div>
             <div>
-                <h1>Gitingest <span class="version-badge">v0.3.0</span></h1>
+                <h1>Gitingest <span class="version-badge">v0.4.0</span></h1>
                 <p>A Ruby gem that fetches files from a GitHub repository and generates a consolidated text prompt for LLMs</p>
             </div>
         </div>
@@ -213,6 +214,15 @@ gitingest --repository user/repo --branch develop
 # Exclude additional patterns
 gitingest --repository user/repo --exclude "*.md,docs/"
 
+# Control the number of threads
+gitingest --repository user/repo -T 4
+
+# Set thread pool shutdown timeout
+gitingest --repository user/repo -W 120
+
+# Combine threading options
+gitingest --repository user/repo -T 8 -W 90
+
 # Quiet mode
 gitingest --repository user/repo --quiet
 
@@ -226,18 +236,30 @@ gitingest --repository user/repo --verbose</code></pre>
             <li><code>-o, --output FILE</code>: Output file for the prompt [Default: reponame_prompt.txt]</li>
             <li><code>-e, --exclude PATTERN</code>: File patterns to exclude (comma separated)</li>
             <li><code>-b, --branch BRANCH</code>: Repository branch [Default: main]</li>
+            <li><code>-T, --threads COUNT</code>: Number of concurrent threads [Default: auto-detected]</li>
+            <li><code>-W, --thread-timeout SECONDS</code>: Thread pool shutdown timeout [Default: 60]</li>
+            <li><code>-q, --quiet</code>: Reduce logging to errors only</li>
+            <li><code>-v, --verbose</code>: Increase logging verbosity</li>
             <li><code>-h, --help</code>: Show help message</li>
         </ul>
         
         <h3>As a Library</h3>
         <pre><code>require "gitingest"
 
-# Basic usage
+# Basic usage - write to a file
 generator = Gitingest::Generator.new(
   repository: "user/repo",
   token: "YOUR_GITHUB_TOKEN" # optional
 )
+
+# Run the full workflow (fetch repository and generate file)
 generator.run
+
+# OR generate file only (if you need the output path)
+output_path = generator.generate_file
+
+# Get content as a string (for in-memory processing)
+content = generator.generate_prompt
 
 # With custom options
 generator = Gitingest::Generator.new(
@@ -246,26 +268,30 @@ generator = Gitingest::Generator.new(
   output_file: "my_prompt.txt",
   branch: "develop",
   exclude: ["*.md", "docs/"], 
-  quiet: true # or verbose: true
+  threads: 4,              # control concurrency
+  thread_timeout: 120,     # custom thread timeout
+  quiet: true              # or verbose: true
 )
-generator.run
 
 # With custom logger
 custom_logger = Logger.new("gitingest.log")
 generator = Gitingest::Generator.new(
   repository: "user/repo",
   logger: custom_logger
-)
-generator.run</code></pre>
+)</code></pre>
         
         <h2>Features</h2>
         <ul>
             <li>Fetches all files from a GitHub repository based on the given branch</li>
             <li>Automatically excludes common binary files and system files by default</li>
             <li>Allows custom exclusion patterns for specific file extensions or directories</li>
-            <li>Uses concurrent processing for faster downloads</li>
-            <li>Handles GitHub API rate limiting with automatic retry</li>
+            <li>Uses concurrent processing with configurable thread count for faster downloads</li>
+            <li>Shows real-time progress with visual bar, ETA, and processing rate</li>
+            <li>Handles GitHub API rate limiting with automatic retry and exponential backoff</li>
+            <li>Optimizes memory usage with buffered writes and thread-local buffers</li>
+            <li>Intelligently prioritizes files for better thread distribution</li>
             <li>Generates a clean, formatted output file with file paths and content</li>
+            <li>Provides both file-based and string-based output options</li>
         </ul>
         
         <h2>Default Exclusion Patterns</h2>
@@ -292,13 +318,45 @@ generator.run</code></pre>
             
             <div class="changelog-item">
                 <div>
+                    <span class="changelog-version">v0.4.0</span>
+                    <span class="changelog-date">- March 4, 2025</span>
+                </div>
+                <ul class="changelog-list">
+                    <li>Added <code>generate_prompt</code> method for in-memory content generation without file I/O</li>
+                    <li>Integrated visual progress bar with file processing rate reporting</li>
+                    <li>Added human-readable time formatting for progress estimates</li>
+                    <li>Enhanced test coverage for multithreaded operations</li>
+                    <li>Refactored <code>process_content_to_output</code> for better code reuse</li>
+                    <li>Improved thread management to handle various error conditions gracefully</li>
+                    <li>Fixed thread pool shutdown issues and race conditions</li>
+                </ul>
+            </div>
+            
+            <div class="changelog-item">
+                <div>
+                    <span class="changelog-version">v0.3.1</span>
+                    <span class="changelog-date">- March 3, 2025</span>
+                </div>
+                <ul class="changelog-list">
+                    <li>Introduced configurable threading options with <code>:threads</code> and <code>:thread_timeout</code></li>
+                    <li>Implemented thread-local buffers to reduce mutex contention during file processing</li>
+                    <li>Added exponential backoff with jitter for rate-limited API requests</li>
+                    <li>Improved progress indicator with estimated time remaining</li>
+                    <li>Increased <code>BUFFER_SIZE</code> from 100 to 250 to reduce I/O operations</li>
+                    <li>Optimized file exclusion check using a combined regex for faster matching</li>
+                    <li>Improved thread pool efficiency by prioritizing smaller files first</li>
+                </ul>
+            </div>
+            
+            <div class="changelog-item">
+                <div>
                     <span class="changelog-version">v0.3.0</span>
                     <span class="changelog-date">- March 2, 2025</span>
                 </div>
                 <ul class="changelog-list">
                     <li>Added <code>faraday-retry</code> gem dependency for better API rate limit handling</li>
                     <li>Implemented thread-safe buffer management with mutex locks</li>
-                    <li>Added new <code>ProgressIndicator</code> class for better CLI progress reporting (showing percentages)</li>
+                    <li>Added new <code>ProgressIndicator</code> class for better CLI progress reporting</li>
                     <li>Improved memory efficiency with configurable buffer size</li>
                     <li>Enhanced code organization with dedicated methods for file content formatting</li>
                     <li>Added comprehensive method documentation and parameter descriptions</li>
@@ -323,26 +381,6 @@ generator.run</code></pre>
                     <li>Enforced a 1000 file limit to prevent memory overload</li>
                 </ul>
             </div>
-            
-            <div class="changelog-item">
-                <div>
-                    <span class="changelog-version">v0.1.0</span>
-                    <span class="changelog-date">- March 2, 2025</span>
-                </div>
-                <ul class="changelog-list">
-                    <li>Initial release of Gitingest</li>
-                    <li>Core functionality to fetch and process GitHub repository files</li>
-                    <li>Command-line interface for easy interaction</li>
-                    <li>Smart file filtering with default exclusions for common non-code files</li>
-                    <li>Concurrent processing for improved performance</li>
-                    <li>Custom exclude patterns support</li>
-                    <li>GitHub authentication via access tokens</li>
-                    <li>Automatic rate limit handling with retry mechanism</li>
-                    <li>Repository prompt generation with file separation markers</li>
-                    <li>Support for custom branch selection</li>
-                    <li>Custom output file naming options</li>
-                </ul>
-            </div>
         </div>
         
         <h2>Contributing</h2>
@@ -357,7 +395,7 @@ generator.run</code></pre>
     
     <footer>
         <p>© 2025 David Santangelo</p>
-        <p>Last updated: March 2, 2025</p>
+        <p>Last updated: March 4, 2025</p>
     </footer>
 </body>
 </html>
