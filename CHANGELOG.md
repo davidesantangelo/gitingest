@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.4.0] - 2025-03-03
+
+### Added
+- Added `generate_prompt` method for in-memory content generation without file I/O
+- Integrated visual progress bar with file processing rate reporting
+- Added human-readable time formatting for progress estimates
+- Enhanced test coverage for multithreaded operations
+
+### Changed
+- Refactored `process_content_to_output` for better code reuse between file and string output
+- Improved thread management to handle various error conditions more gracefully
+- Enhanced documentation with programmatic usage examples
+
+### Fixed
+- Resolved thread pool shutdown issues in test environment
+- Fixed race conditions in progress indicator updates
+- Addressed timing inconsistencies in multithreaded test scenarios
+
+---
+
 ## [0.3.1] - 2025-03-03
 
 ### Added

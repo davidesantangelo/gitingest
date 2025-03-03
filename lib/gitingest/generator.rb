@@ -106,10 +106,42 @@ module Gitingest
       compile_excluded_patterns
     end
 
-    # Main execution method
+    # Main execution method for command line
     def run
       fetch_repository_contents
-      generate_prompt
+      generate_file
+    end
+
+    # Generate content and save it to a file
+    #
+    # @return [String] Path to the generated file
+    def generate_file
+      fetch_repository_contents if @repo_files.empty?
+
+      @logger.info "Generating file for #{@options[:repository]}"
+      File.open(@options[:output_file], "w") do |file|
+        process_content_to_output(file)
+      end
+
+      @logger.info "Prompt generated and saved to #{@options[:output_file]}"
+      @options[:output_file]
+    end
+
+    # Generate content and return it as a string
+    # Useful for programmatic usage
+    #
+    # @return [String] The generated repository content
+    def generate_prompt
+      @logger.info "Generating in-memory prompt for #{@options[:repository]}"
+
+      fetch_repository_contents if @repo_files.empty?
+
+      content = StringIO.new
+      process_content_to_output(content)
+
+      result = content.string
+      @logger.info "Generated #{result.size} bytes of content in memory"
+      result
     end
 
     private
@@ -202,89 +234,82 @@ module Gitingest
       path.match?(@combined_exclude_regex)
     end
 
-    # Generate the consolidated prompt file with optimized threading
-    def generate_prompt
-      @logger.info "Generating prompt..."
+    # Common implementation for both file and string output
+    def process_content_to_output(output)
       @logger.debug "Using thread pool with #{@options[:threads]} threads"
 
       buffer = []
       progress = ProgressIndicator.new(@repo_files.size, @logger)
 
-      # Optimization: thread-local buffers to reduce mutex contention
+      # Thread-local buffers to reduce mutex contention
       thread_buffers = {}
       mutex = Mutex.new
       errors = []
 
-      # Dynamic thread pool based on configuration
+      # Thread pool based on configuration
       pool = Concurrent::FixedThreadPool.new(@options[:threads])
 
-      # Group files by priority (smaller files first for better parallelism)
+      # Group files by priority
       prioritized_files = prioritize_files(@repo_files)
 
-      File.open(@options[:output_file], "w") do |file|
-        prioritized_files.each_with_index do |repo_file, index|
-          pool.post do
-            # Optimization: Use thread-local buffers
-            thread_id = Thread.current.object_id
-            thread_buffers[thread_id] ||= []
-            local_buffer = thread_buffers[thread_id]
+      prioritized_files.each_with_index do |repo_file, index|
+        pool.post do
+          thread_id = Thread.current.object_id
+          thread_buffers[thread_id] ||= []
+          local_buffer = thread_buffers[thread_id]
 
-            begin
-              content = fetch_file_content_with_retry(repo_file.path)
-              result = format_file_content(repo_file.path, content)
-              local_buffer << result
+          begin
+            content = fetch_file_content_with_retry(repo_file.path)
+            result = format_file_content(repo_file.path, content)
+            local_buffer << result
 
-              # Optimization: Only acquire mutex when local buffer reaches threshold
-              if local_buffer.size >= LOCAL_BUFFER_THRESHOLD
-                mutex.synchronize do
-                  buffer.concat(local_buffer)
-                  write_buffer(file, buffer) if buffer.size >= BUFFER_SIZE
-                  local_buffer.clear
-                end
-              end
-
-              progress.update(index + 1)
-            rescue Octokit::Error => e
+            if local_buffer.size >= LOCAL_BUFFER_THRESHOLD
               mutex.synchronize do
-                errors << "Error fetching #{repo_file.path}: #{e.message}"
-                @logger.error "Error fetching #{repo_file.path}: #{e.message}"
+                buffer.concat(local_buffer)
+                write_buffer(output, buffer) if buffer.size >= BUFFER_SIZE
+                local_buffer.clear
               end
-            rescue StandardError => e
-              mutex.synchronize do
-                errors << "Unexpected error processing #{repo_file.path}: #{e.message}"
-                @logger.error "Unexpected error processing #{repo_file.path}: #{e.message}"
-              end
+            end
+
+            progress.update(index + 1)
+          rescue Octokit::Error => e
+            mutex.synchronize do
+              errors << "Error fetching #{repo_file.path}: #{e.message}"
+              @logger.error "Error fetching #{repo_file.path}: #{e.message}"
+            end
+          rescue StandardError => e
+            mutex.synchronize do
+              errors << "Unexpected error processing #{repo_file.path}: #{e.message}"
+              @logger.error "Unexpected error processing #{repo_file.path}: #{e.message}"
             end
           end
         end
-
-        begin
-          pool.shutdown
-          wait_success = pool.wait_for_termination(@options[:thread_timeout])
-
-          unless wait_success
-            @logger.warn "Thread pool did not shut down within #{@options[:thread_timeout]} seconds, forcing termination"
-            pool.kill
-          end
-        rescue StandardError => e
-          @logger.error "Error during thread pool shutdown: #{e.message}"
-        end
-
-        # Process remaining files in thread-local buffers
-        mutex.synchronize do
-          thread_buffers.each_value do |local_buffer|
-            buffer.concat(local_buffer) unless local_buffer.empty?
-          end
-          write_buffer(file, buffer) unless buffer.empty?
-        end
       end
 
-      if errors.any?
-        @logger.warn "Completed with #{errors.size} errors"
-        @logger.debug "First few errors: #{errors.first(3).join(", ")}" if @logger.debug?
+      begin
+        pool.shutdown
+        wait_success = pool.wait_for_termination(@options[:thread_timeout])
+
+        unless wait_success
+          @logger.warn "Thread pool did not shut down within #{@options[:thread_timeout]} seconds, forcing termination"
+          pool.kill
+        end
+      rescue StandardError => e
+        @logger.error "Error during thread pool shutdown: #{e.message}"
       end
 
-      @logger.info "Prompt generated and saved to #{@options[:output_file]}"
+      # Process remaining files in thread-local buffers
+      mutex.synchronize do
+        thread_buffers.each_value do |local_buffer|
+          buffer.concat(local_buffer) unless local_buffer.empty?
+        end
+        write_buffer(output, buffer) unless buffer.empty?
+      end
+
+      return unless errors.any?
+
+      @logger.warn "Completed with #{errors.size} errors"
+      @logger.debug "First few errors: #{errors.first(3).join(", ")}" if @logger.debug?
     end
 
     # Format a file's content for the prompt

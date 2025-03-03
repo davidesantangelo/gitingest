@@ -22,7 +22,7 @@ parser = OptionParser.new do |opts|
     options[:output_file] = file
   end
 
-  opts.on("-b", "--branch BRANCH", "Repository branch") do |branch|
+  opts.on("-b", "--branch BRANCH", "Repository branch [Default: main]") do |branch|
     options[:branch] = branch
   end
 
@@ -30,11 +30,20 @@ parser = OptionParser.new do |opts|
     options[:exclude] = pattern.split(",")
   end
 
-  opts.on("-q", "--quiet", "Disable all output except errors") do
+  opts.on("-T", "--threads COUNT", Integer, "Number of concurrent threads [Default: auto-detected]") do |threads|
+    options[:threads] = threads
+  end
+
+  opts.on("-W", "--thread-timeout SECONDS", Integer,
+          "Thread pool shutdown timeout in seconds [Default: 60]") do |timeout|
+    options[:thread_timeout] = timeout
+  end
+
+  opts.on("-q", "--quiet", "Reduce logging to errors only") do
     options[:quiet] = true
   end
 
-  opts.on("-v", "--verbose", "Enable verbose output") do
+  opts.on("-v", "--verbose", "Increase logging verbosity") do
     options[:verbose] = true
   end
 
@@ -42,6 +51,13 @@ parser = OptionParser.new do |opts|
     puts opts
     exit
   end
+
+  opts.separator ""
+  opts.separator "Examples:"
+  opts.separator "  gitingest -r user/repo                      # Basic usage with public repository"
+  opts.separator "  gitingest -r user/repo -t YOUR_TOKEN        # With GitHub token for private repositories"
+  opts.separator "  gitingest -r user/repo -o custom_prompt.txt # Custom output file"
+  opts.separator "  gitingest -r user/repo -T 8                 # Use 8 threads for processing"
 end
 
 begin

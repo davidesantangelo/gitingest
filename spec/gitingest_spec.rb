@@ -8,14 +8,19 @@ RSpec.describe Gitingest do
   end
 
   describe Gitingest::Generator do
+    let(:mock_repo) { "user/repo" }
+    let(:mock_branch) { "main" }
+
     it "requires a repository option" do
       expect { Gitingest::Generator.new({}) }.to raise_error(ArgumentError)
     end
 
     it "sets default values" do
-      generator = Gitingest::Generator.new(repository: "user/repo")
+      generator = Gitingest::Generator.new(repository: mock_repo)
       expect(generator.options[:branch]).to eq("main")
       expect(generator.options[:output_file]).to eq("repo_prompt.txt")
+      expect(generator.options[:threads]).to eq(Gitingest::Generator::DEFAULT_THREAD_COUNT)
+      expect(generator.options[:thread_timeout]).to eq(Gitingest::Generator::DEFAULT_THREAD_TIMEOUT)
     end
 
     it "uses repository name for output file when not specified" do
@@ -24,29 +29,35 @@ RSpec.describe Gitingest do
     end
 
     it "respects custom output filename" do
-      generator = Gitingest::Generator.new(repository: "user/repo", output_file: "custom_output.txt")
+      generator = Gitingest::Generator.new(repository: mock_repo, output_file: "custom_output.txt")
       expect(generator.options[:output_file]).to eq("custom_output.txt")
     end
 
     it "respects custom branch name" do
-      generator = Gitingest::Generator.new(repository: "user/repo", branch: "develop")
+      generator = Gitingest::Generator.new(repository: mock_repo, branch: "develop")
       expect(generator.options[:branch]).to eq("develop")
     end
 
+    it "respects custom thread settings" do
+      generator = Gitingest::Generator.new(repository: mock_repo, threads: 4, thread_timeout: 30)
+      expect(generator.options[:threads]).to eq(4)
+      expect(generator.options[:thread_timeout]).to eq(30)
+    end
+
     it "initializes with default exclude patterns" do
-      generator = Gitingest::Generator.new(repository: "user/repo")
+      generator = Gitingest::Generator.new(repository: mock_repo)
       expect(generator.excluded_patterns.size).to eq(Gitingest::Generator::DEFAULT_EXCLUDES.size)
     end
 
     it "adds custom exclude patterns" do
       custom_excludes = %w[custom_pattern another_pattern]
-      generator = Gitingest::Generator.new(repository: "user/repo", exclude: custom_excludes)
+      generator = Gitingest::Generator.new(repository: mock_repo, exclude: custom_excludes)
       # Should have default excludes + custom excludes
       expect(generator.excluded_patterns.size).to eq(Gitingest::Generator::DEFAULT_EXCLUDES.size + custom_excludes.size)
     end
 
-    describe "#excluded_file?" do
-      let(:generator) { Gitingest::Generator.new(repository: "user/repo") }
+    describe "file exclusion" do
+      let(:generator) { Gitingest::Generator.new(repository: mock_repo) }
 
       it "excludes dotfiles" do
         expect(generator.send(:excluded_file?, ".env")).to be true
@@ -71,18 +82,18 @@ RSpec.describe Gitingest do
     describe "client configuration" do
       it "uses token for authentication when provided" do
         token = "sample_token"
-        generator = Gitingest::Generator.new(repository: "user/repo", token: token)
+        generator = Gitingest::Generator.new(repository: mock_repo, token: token)
         expect(generator.client.access_token).to eq(token)
       end
 
       it "creates anonymous client when no token provided" do
-        generator = Gitingest::Generator.new(repository: "user/repo")
+        generator = Gitingest::Generator.new(repository: mock_repo)
         expect(generator.client.access_token).to be_nil
       end
     end
 
     describe "repository access validation" do
-      let(:generator) { Gitingest::Generator.new(repository: "user/repo") }
+      let(:generator) { Gitingest::Generator.new(repository: mock_repo) }
 
       before do
         allow(generator.client).to receive(:repository)
@@ -110,7 +121,7 @@ RSpec.describe Gitingest do
     end
 
     describe "fetch_repository_contents" do
-      let(:generator) { Gitingest::Generator.new(repository: "user/repo") }
+      let(:generator) { Gitingest::Generator.new(repository: mock_repo) }
       let(:tree) { double("tree", tree: []) }
 
       before do
@@ -142,7 +153,7 @@ RSpec.describe Gitingest do
     end
 
     describe "fetch_file_content_with_retry" do
-      let(:generator) { Gitingest::Generator.new(repository: "user/repo") }
+      let(:generator) { Gitingest::Generator.new(repository: mock_repo) }
       let(:content) { double("content", content: Base64.encode64("file content")) }
 
       it "fetches and decodes file content" do
@@ -167,59 +178,195 @@ RSpec.describe Gitingest do
       end
     end
 
-    describe "generate_prompt" do
-      let(:generator) { Gitingest::Generator.new(repository: "user/repo") }
-      let(:repo_file) { double("repo_file", path: "lib/file.rb") }
+    describe "generate_file" do
+      let(:generator) { Gitingest::Generator.new(repository: mock_repo, output_file: "test_output.txt") }
       let(:file_double) { instance_double(File) }
+
+      before do
+        allow(generator).to receive(:fetch_repository_contents)
+        allow(generator).to receive(:process_content_to_output)
+        allow(File).to receive(:open).with("test_output.txt", "w").and_yield(file_double)
+      end
+
+      it "fetches repository contents if empty" do
+        expect(generator).to receive(:fetch_repository_contents)
+        generator.generate_file
+      end
+
+      it "calls process_content_to_output with file handle" do
+        expect(generator).to receive(:process_content_to_output).with(file_double)
+        generator.generate_file
+      end
+
+      it "returns output file path" do
+        expect(generator.generate_file).to eq("test_output.txt")
+      end
+    end
+
+    describe "generate_prompt" do
+      let(:generator) { Gitingest::Generator.new(repository: mock_repo) }
+      let(:string_io) { StringIO.new }
+      let(:result_string) { "Generated content" }
+
+      before do
+        allow(generator).to receive(:fetch_repository_contents)
+        allow(StringIO).to receive(:new).and_return(string_io)
+        allow(generator).to receive(:process_content_to_output)
+        allow(string_io).to receive(:string).and_return(result_string)
+      end
+
+      it "fetches repository contents if empty" do
+        expect(generator).to receive(:fetch_repository_contents)
+        generator.generate_prompt
+      end
+
+      it "calls process_content_to_output with StringIO" do
+        expect(generator).to receive(:process_content_to_output).with(string_io)
+        generator.generate_prompt
+      end
+
+      it "returns generated string content" do
+        expect(generator.generate_prompt).to eq(result_string)
+      end
+    end
+
+    describe "process_content_to_output" do
+      let(:generator) { Gitingest::Generator.new(repository: mock_repo) }
+      let(:repo_file) { double("repo_file", path: "lib/file.rb") }
+      let(:output) { instance_double(StringIO) }
       let(:pool) { instance_double(Concurrent::FixedThreadPool) }
+      let(:progress_indicator) { instance_double(Gitingest::ProgressIndicator) }
 
       before do
         generator.instance_variable_set(:@repo_files, [repo_file])
+        allow(Gitingest::ProgressIndicator).to receive(:new).and_return(progress_indicator)
+        allow(progress_indicator).to receive(:update)
         allow(Concurrent::FixedThreadPool).to receive(:new).and_return(pool)
         allow(pool).to receive(:post).and_yield
         allow(pool).to receive(:shutdown)
         allow(pool).to receive(:wait_for_termination).and_return(true) # Return true by default
-        allow(pool).to receive(:kill) # Add this line to allow the kill method
-        allow(File).to receive(:open).and_yield(file_double)
-        allow(file_double).to receive(:puts)
+        allow(pool).to receive(:kill)
+        allow(output).to receive(:puts)
         allow(generator).to receive(:fetch_file_content_with_retry).with("lib/file.rb").and_return("file content")
-        allow(generator).to receive(:print) # For progress indicator
+        allow(generator).to receive(:prioritize_files).and_return([repo_file])
+        allow(generator).to receive(:write_buffer)
       end
 
-      it "processes each file and generates content" do
-        # Don't stub write_buffer so the actual method is called
+      it "processes each file and formats content" do
         expect(generator).to receive(:fetch_file_content_with_retry).with("lib/file.rb")
+        expect(generator).to receive(:format_file_content).with("lib/file.rb", "file content")
 
-        # The buffer should be written at the end of processing
-        expect(file_double).to receive(:puts) do |content|
-          expect(content).to include("File: lib/file.rb")
-          expect(content).to include("file content")
-        end
-
-        generator.send(:generate_prompt)
+        generator.send(:process_content_to_output, output)
       end
 
-      # Add a specific test for thread pool timeout handling
       it "handles thread pool timeout correctly" do
         # Setup wait_for_termination to return false to simulate timeout
-        allow(pool).to receive(:wait_for_termination).and_return(false)
+        allow(pool).to receive(:wait_for_termination).with(generator.options[:thread_timeout]).and_return(false)
 
         # Expect kill to be called in this case
         expect(pool).to receive(:kill)
 
-        generator.send(:generate_prompt)
+        generator.send(:process_content_to_output, output)
+      end
+
+      it "handles unexpected errors gracefully" do
+        allow(generator).to receive(:fetch_file_content_with_retry).and_raise(StandardError, "Test error")
+
+        # Should log error but not crash
+        expect(generator.logger).to receive(:error).with(/Unexpected error processing/)
+
+        # Should complete normally
+        generator.send(:process_content_to_output, output)
+      end
+
+      it "processes thread-local buffers after completion" do
+        # Mock thread buffer behavior
+        thread_buffers = { Thread.current.object_id => ["some content"] }
+        generator.instance_variable_set(:@thread_buffers, thread_buffers)
+
+        # Should process remaining buffers
+        expect(generator).to receive(:write_buffer).at_least(:once)
+
+        generator.send(:process_content_to_output, output)
+      end
+    end
+
+    describe "prioritize_files" do
+      let(:generator) { Gitingest::Generator.new(repository: mock_repo) }
+
+      it "prioritizes documentation files first" do
+        readme = double("readme", path: "README.md")
+        code = double("code", path: "lib/file.rb")
+        other = double("other", path: "unknown.xyz")
+
+        files = [code, other, readme]
+        sorted = generator.send(:prioritize_files, files)
+
+        expect(sorted.first).to eq(readme)
+        expect(sorted.last).to eq(other)
       end
     end
 
     describe "run" do
-      let(:generator) { Gitingest::Generator.new(repository: "user/repo") }
+      let(:generator) { Gitingest::Generator.new(repository: mock_repo) }
 
       it "runs the full workflow" do
         expect(generator).to receive(:fetch_repository_contents)
-        expect(generator).to receive(:generate_prompt)
+        expect(generator).to receive(:generate_file)
 
         generator.run
       end
+    end
+  end
+
+  describe Gitingest::ProgressIndicator do
+    let(:logger) { instance_double(Logger) }
+    let(:progress) { Gitingest::ProgressIndicator.new(100, logger) }
+
+    before do
+      allow(logger).to receive(:info)
+      # Stub print to avoid terminal output during tests
+      allow(progress).to receive(:print)
+    end
+
+    it "only updates at meaningful intervals" do
+      # First update should print progress bar
+      expect(progress).to receive(:print).with(/\[\|/).once
+      expect(progress).to receive(:print).with("\n").once.ordered
+      progress.update(100) # Complete the progress to trigger both prints
+    end
+
+    it "logs at 10% increments" do
+      # Reset expected last percent
+      progress.instance_variable_set(:@last_percent, 0)
+
+      # Need to mock Time.now to make elapsed time calculation consistent
+      allow(Time).to receive(:now).and_return(Time.now + 10)
+
+      # Allow the update interval check to pass
+      progress.instance_variable_set(:@last_update_time, Time.now - 1)
+
+      # Should log at 10%
+      expect(logger).to receive(:info).with(/Processing: 10% complete/)
+      progress.update(10)
+    end
+
+    it "includes ETA for incomplete progress" do
+      # Create a fresh instance with controlled timing
+      start_time = Time.now - 50 # 50 seconds ago
+      progress = Gitingest::ProgressIndicator.new(100, logger)
+      progress.instance_variable_set(:@start_time, start_time)
+      progress.instance_variable_set(:@last_update_time, start_time)
+      progress.instance_variable_set(:@last_percent, 0)
+
+      # First allow any print call
+      allow(progress).to receive(:print)
+
+      # Check logger output for ETA
+      expect(logger).to receive(:info).with(/ETA:/)
+
+      # Update to 50% - halfway through should give ETA close to elapsed time
+      progress.update(50)
     end
   end
 end

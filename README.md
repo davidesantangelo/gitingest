@@ -39,6 +39,15 @@ gitingest --repository user/repo --branch develop
 # Exclude additional patterns
 gitingest --repository user/repo --exclude "*.md,docs/"
 
+# Control the number of threads
+gitingest --repository user/repo -T 4
+
+# Set thread pool shutdown timeout
+gitingest --repository user/repo -W 120
+
+# Combine threading options
+gitingest --repository user/repo -T 8 -W 90
+
 # Quiet mode
 gitingest --repository user/repo --quiet
 
@@ -53,6 +62,10 @@ gitingest --repository user/repo --verbose
 - `-o, --output FILE`: Output file for the prompt [Default: reponame_prompt.txt]
 - `-e, --exclude PATTERN`: File patterns to exclude (comma separated)
 - `-b, --branch BRANCH`: Repository branch [Default: main]
+- `-T, --threads COUNT`: Number of concurrent threads [Default: auto-detected]
+- `-W, --thread-timeout SECONDS`: Thread pool shutdown timeout [Default: 60]
+- `-q, --quiet`: Reduce logging to errors only
+- `-v, --verbose`: Increase logging verbosity
 - `-h, --help`: Show help message
 
 ### As a Library
@@ -60,12 +73,20 @@ gitingest --repository user/repo --verbose
 ```ruby
 require "gitingest"
 
-# Basic usage
+# Basic usage - write to a file
 generator = Gitingest::Generator.new(
   repository: "user/repo",
   token: "YOUR_GITHUB_TOKEN" # optional
 )
+
+# Run the full workflow (fetch repository and generate file)
 generator.run
+
+# OR generate file only (if you need the output path)
+output_path = generator.generate_file
+
+# Get content as a string (for in-memory processing)
+content = generator.generate_prompt
 
 # With custom options
 generator = Gitingest::Generator.new(
@@ -74,9 +95,10 @@ generator = Gitingest::Generator.new(
   output_file: "my_prompt.txt",
   branch: "develop",
   exclude: ["*.md", "docs/"], 
-  quiet: true # or verbose: true
+  threads: 4,              # control concurrency
+  thread_timeout: 120,     # custom thread timeout
+  quiet: true              # or verbose: true
 )
-generator.run
 
 # With custom logger
 custom_logger = Logger.new("gitingest.log")
@@ -84,7 +106,6 @@ generator = Gitingest::Generator.new(
   repository: "user/repo",
   logger: custom_logger
 )
-generator.run
 ```
 
 ## Features
