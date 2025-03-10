@@ -45,6 +45,9 @@ gitingest --repository user/repo -T 4
 # Set thread pool shutdown timeout
 gitingest --repository user/repo -W 120
 
+# Show repository directory structure
+gitingest --repository user/repo -s
+
 # Combine threading options
 gitingest --repository user/repo -T 8 -W 90
 
@@ -62,11 +65,20 @@ gitingest --repository user/repo --verbose
 - `-o, --output FILE`: Output file for the prompt [Default: reponame_prompt.txt]
 - `-e, --exclude PATTERN`: File patterns to exclude (comma separated)
 - `-b, --branch BRANCH`: Repository branch [Default: main]
+- `-s, --show-structure`: Show repository directory structure instead of generating prompt
 - `-T, --threads COUNT`: Number of concurrent threads [Default: auto-detected]
 - `-W, --thread-timeout SECONDS`: Thread pool shutdown timeout [Default: 60]
 - `-q, --quiet`: Reduce logging to errors only
 - `-v, --verbose`: Increase logging verbosity
 - `-h, --help`: Show help message
+
+### Directory Structure Visualization
+
+```bash
+gitingest --repository user/repo --show-structure
+```
+
+This will display a tree view of the repository's structure:
 
 ### As a Library
 

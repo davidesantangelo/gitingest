@@ -96,6 +96,7 @@ module Gitingest
     # @option options [Logger] :logger Custom logger instance
     # @option options [Integer] :threads Number of threads to use (default: auto-detected)
     # @option options [Integer] :thread_timeout Seconds to wait for thread pool shutdown (default: 60)
+    # @option options [Boolean] :show_structure Show repository directory structure (default: false)
     def initialize(options = {})
       @options = options
       @repo_files = []
@@ -109,6 +110,12 @@ module Gitingest
     # Main execution method for command line
     def run
       fetch_repository_contents
+
+      if @options[:show_structure]
+        puts generate_directory_structure
+        return
+      end
+
       generate_file
     end
 
@@ -144,6 +151,21 @@ module Gitingest
       result
     end
 
+    # Generate a textual representation of the repository's directory structure
+    #
+    # @return [String] The directory structure as a formatted string
+    def generate_directory_structure
+      fetch_repository_contents if @repo_files.empty?
+
+      @logger.info "Generating directory structure for #{@options[:repository]}"
+
+      repo_name = @options[:repository].split("/").last
+      structure = DirectoryStructureBuilder.new(repo_name, @repo_files).build
+
+      @logger.info "\n"
+      structure
+    end
+
     private
 
     # Set up logging based on verbosity options
@@ -169,6 +191,7 @@ module Gitingest
       @options[:exclude] ||= []
       @options[:threads] ||= DEFAULT_THREAD_COUNT
       @options[:thread_timeout] ||= DEFAULT_THREAD_TIMEOUT
+      @options[:show_structure] ||= false
       @excluded_patterns = DEFAULT_EXCLUDES + @options[:exclude]
     end
 
@@ -438,6 +461,59 @@ module Gitingest
         hours = (seconds / 3600).floor
         minutes = ((seconds % 3600) / 60).floor
         "#{hours}h #{minutes}m"
+      end
+    end
+  end
+
+  # Helper class to build directory structure visualization
+  class DirectoryStructureBuilder
+    def initialize(root_name, files)
+      @root_name = root_name
+      @files = files.map(&:path)
+    end
+
+    def build
+      tree = { @root_name => {} }
+
+      @files.sort.each do |path|
+        parts = path.split("/")
+        current = tree[@root_name]
+
+        parts.each do |part|
+          if part == parts.last
+            current[part] = nil
+          else
+            current[part] ||= {}
+            current = current[part]
+          end
+        end
+      end
+
+      output = ["Directory structure:"]
+      render_tree(tree, "", output)
+      output.join("\n")
+    end
+
+    private
+
+    def render_tree(tree, prefix, output)
+      return if tree.nil?
+
+      tree.keys.each_with_index do |key, index|
+        is_last = index == tree.keys.size - 1
+        current_prefix = prefix
+
+        if prefix.empty?
+          output << "└── #{key}/"
+          current_prefix = "    "
+        else
+          connector = is_last ? "└── " : "├── "
+          item = tree[key].is_a?(Hash) ? "#{key}/" : key
+          output << "#{prefix}#{connector}#{item}"
+          current_prefix = prefix + (is_last ? "    " : "│   ")
+        end
+
+        render_tree(tree[key], current_prefix, output) if tree[key].is_a?(Hash)
       end
     end
   end

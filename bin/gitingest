@@ -39,6 +39,10 @@ parser = OptionParser.new do |opts|
     options[:thread_timeout] = timeout
   end
 
+  opts.on("-s", "--show-structure", "Show repository directory structure") do
+    options[:show_structure] = true
+  end
+
   opts.on("-q", "--quiet", "Reduce logging to errors only") do
     options[:quiet] = true
   end
@@ -58,6 +62,7 @@ parser = OptionParser.new do |opts|
   opts.separator "  gitingest -r user/repo -t YOUR_TOKEN        # With GitHub token for private repositories"
   opts.separator "  gitingest -r user/repo -o custom_prompt.txt # Custom output file"
   opts.separator "  gitingest -r user/repo -T 8                 # Use 8 threads for processing"
+  opts.separator "  gitingest -r user/repo -s                   # Show repository directory structure"
 end
 
 begin

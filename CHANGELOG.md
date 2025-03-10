@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.0] - 2025-03-10
+
+### Added
+- Added repository directory structure visualization with `--show-structure` / `-s` option
+- Created `DirectoryStructureBuilder` class to generate tree views of repositories
+- Added `generate_directory_structure` method to the Generator class
+- Added tests for directory structure visualization
+
+### Changed
+- Enhanced documentation with directory structure visualization examples
+- Updated CLI help with the new option
+
+---
+
 ## [0.4.0] - 2025-03-03
 
 ### Added

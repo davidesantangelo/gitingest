@@ -177,7 +177,7 @@
         <div class="header">
             <div class="logo">G</div>
             <div>
-                <h1>Gitingest <span class="version-badge">v0.4.0</span></h1>
+                <h1>Gitingest <span class="version-badge">v0.5.0</span></h1>
                 <p>A Ruby gem that fetches files from a GitHub repository and generates a consolidated text prompt for LLMs</p>
             </div>
         </div>
@@ -214,6 +214,9 @@ gitingest --repository user/repo --branch develop
 # Exclude additional patterns
 gitingest --repository user/repo --exclude "*.md,docs/"
 
+# Show repository directory structure
+gitingest --repository user/repo -s
+
 # Control the number of threads
 gitingest --repository user/repo -T 4
 
@@ -236,12 +239,32 @@ gitingest --repository user/repo --verbose</code></pre>
             <li><code>-o, --output FILE</code>: Output file for the prompt [Default: reponame_prompt.txt]</li>
             <li><code>-e, --exclude PATTERN</code>: File patterns to exclude (comma separated)</li>
             <li><code>-b, --branch BRANCH</code>: Repository branch [Default: main]</li>
+            <li><code>-s, --show-structure</code>: Show repository directory structure</li>
             <li><code>-T, --threads COUNT</code>: Number of concurrent threads [Default: auto-detected]</li>
             <li><code>-W, --thread-timeout SECONDS</code>: Thread pool shutdown timeout [Default: 60]</li>
             <li><code>-q, --quiet</code>: Reduce logging to errors only</li>
             <li><code>-v, --verbose</code>: Increase logging verbosity</li>
             <li><code>-h, --help</code>: Show help message</li>
         </ul>
+        
+        <h3>Directory Structure Visualization</h3>
+        <p>You can visualize the structure of a repository using the <code>--show-structure</code> option:</p>
+        <pre><code>gitingest --repository user/repo --show-structure</code></pre>
+        
+        <p>This will display a tree view of the repository's structure, for example:</p>
+        <pre><code>Directory structure:
+└── repo-name/
+    ├── README.md
+    ├── LICENSE
+    ├── lib/
+    │   ├── repo-name.rb
+    │   └── repo-name/
+    │       └── version.rb
+    ├── bin/
+    │   └── console
+    └── spec/
+        ├── spec_helper.rb
+        └── repo-name_spec.rb</code></pre>
         
         <h3>As a Library</h3>
         <pre><code>require "gitingest"
@@ -261,6 +284,9 @@ output_path = generator.generate_file
 # Get content as a string (for in-memory processing)
 content = generator.generate_prompt
 
+# Generate and get repository directory structure
+structure = generator.generate_directory_structure
+
 # With custom options
 generator = Gitingest::Generator.new(
   repository: "user/repo",
@@ -270,7 +296,8 @@ generator = Gitingest::Generator.new(
   exclude: ["*.md", "docs/"], 
   threads: 4,              # control concurrency
   thread_timeout: 120,     # custom thread timeout
-  quiet: true              # or verbose: true
+  quiet: true,             # or verbose: true
+  show_structure: true     # show directory structure instead of generating prompt
 )
 
 # With custom logger
@@ -292,6 +319,7 @@ generator = Gitingest::Generator.new(
             <li>Intelligently prioritizes files for better thread distribution</li>
             <li>Generates a clean, formatted output file with file paths and content</li>
             <li>Provides both file-based and string-based output options</li>
+            <li>Visualizes repository directory structure in a tree format</li>
         </ul>
         
         <h2>Default Exclusion Patterns</h2>
@@ -315,6 +343,20 @@ generator = Gitingest::Generator.new(
 
         <div class="changelog">
             <h2>Changelog</h2>
+            
+            <div class="changelog-item">
+                <div>
+                    <span class="changelog-version">v0.5.0</span>
+                    <span class="changelog-date">- March 4, 2025</span>
+                </div>
+                <ul class="changelog-list">
+                    <li>Added repository directory structure visualization with <code>--show-structure</code> option</li>
+                    <li>Created <code>DirectoryStructureBuilder</code> class to generate tree views of repositories</li>
+                    <li>Added <code>generate_directory_structure</code> method to the Generator class</li>
+                    <li>Added tests for the directory structure visualization</li>
+                    <li>Updated documentation with directory structure visualization examples</li>
+                </ul>
+            </div>
             
             <div class="changelog-item">
                 <div>

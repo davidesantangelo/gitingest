@@ -317,6 +317,95 @@ RSpec.describe Gitingest do
         generator.run
       end
     end
+
+    describe "directory structure" do
+      let(:mock_repo) { "user/repo" }
+      let(:generator) { Gitingest::Generator.new(repository: mock_repo, show_structure: true) }
+
+      before do
+        # Mock repository validation to avoid API calls
+        allow(generator).to receive(:fetch_repository_contents)
+
+        # Mock the repo files
+        file1 = double("file1", type: "blob", path: "README.md")
+        file2 = double("file2", type: "blob", path: "lib/gitingest.rb")
+        file3 = double("file3", type: "blob", path: "lib/gitingest/version.rb")
+        file4 = double("file4", type: "blob", path: "bin/gitingest")
+
+        generator.instance_variable_set(:@repo_files, [file1, file2, file3, file4])
+      end
+
+      it "sets the show_structure option" do
+        expect(generator.options[:show_structure]).to be true
+      end
+
+      it "generates a directory structure" do
+        structure = generator.generate_directory_structure
+        expect(structure).to include("Directory structure:")
+        expect(structure).to include("└── repo/")
+        expect(structure).to include("├── README.md")
+        expect(structure).to include("├── bin/")
+        expect(structure).to include("│   └── gitingest")
+        expect(structure).to include("└── lib/")
+        expect(structure).to include("    ├── gitingest.rb")
+        expect(structure).to include("    └── gitingest/")
+        expect(structure).to include("        └── version.rb")
+      end
+
+      it "handles an empty repository gracefully" do
+        generator.instance_variable_set(:@repo_files, [])
+        # Skip fetching repository contents to avoid API call
+        allow(generator).to receive(:fetch_repository_contents) # This is the key fix
+
+        structure = generator.generate_directory_structure
+        expect(structure).to include("Directory structure:")
+        expect(structure).to include("└── repo/")
+      end
+
+      it "prioritizes the directory structure in 'run' when show_structure is true" do
+        # Skip fetching repository contents to avoid API call
+        allow(generator).to receive(:fetch_repository_contents) # This is the key fix
+        expect(generator).to receive(:generate_directory_structure).and_return("Structure output")
+        expect(generator).to receive(:puts).with("Structure output")
+        expect(generator).not_to receive(:generate_file)
+
+        generator.run
+      end
+    end
+  end
+
+  describe Gitingest::DirectoryStructureBuilder do
+    let(:root_name) { "test-repo" }
+
+    it "builds a tree structure from file paths" do
+      files = [
+        double("file1", path: "README.md"),
+        double("file2", path: "src/main.rb"),
+        double("file3", path: "src/lib/helper.rb"),
+        double("file4", path: "test/test_main.rb")
+      ]
+
+      builder = Gitingest::DirectoryStructureBuilder.new(root_name, files)
+      structure = builder.build
+
+      expect(structure).to include("Directory structure:")
+      expect(structure).to include("└── test-repo/")
+      expect(structure).to include("    ├── README.md")
+      expect(structure).to include("    ├── src/")
+      expect(structure).to include("    │   ├── lib/")
+      expect(structure).to include("    │   │   └── helper.rb")
+      expect(structure).to include("    │   └── main.rb")
+      expect(structure).to include("    └── test/")
+      expect(structure).to include("        └── test_main.rb")
+    end
+
+    it "handles empty file list" do
+      builder = Gitingest::DirectoryStructureBuilder.new(root_name, [])
+      structure = builder.build
+
+      expect(structure).to include("Directory structure:")
+      expect(structure).to include("└── test-repo/")
+    end
   end
 
   describe Gitingest::ProgressIndicator do
