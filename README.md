@@ -1,3 +1,6 @@
+[![Gem Version](https://badge.fury.io/rb/gitingest.svg?icon=si%3Arubygems)](https://badge.fury.io/rb/gitingest)
+![Gem Total Downloads](https://img.shields.io/gem/dt/gitingest?style=flat-square&link=https%3A%2F%2Frubygems.org%2Fgems%2Fgitingest)
+
 # Gitingest
 
 Gitingest is a Ruby gem that fetches files from a GitHub repository and generates a consolidated text prompt, which can be used as input for large language models, documentation generation, or other purposes.
