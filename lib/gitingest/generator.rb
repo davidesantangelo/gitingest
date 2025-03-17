@@ -187,7 +187,7 @@ module Gitingest
       raise ArgumentError, "Repository is required" unless @options[:repository]
 
       @options[:output_file] ||= "#{@options[:repository].split("/").last}_prompt.txt"
-      @options[:branch] ||= "main"
+      @options[:branch] ||= :default
       @options[:exclude] ||= []
       @options[:threads] ||= DEFAULT_THREAD_COUNT
       @options[:thread_timeout] ||= DEFAULT_THREAD_TIMEOUT
@@ -215,6 +215,8 @@ module Gitingest
 
     # Fetch repository contents and apply exclusion filters
     def fetch_repository_contents
+      options[:branch] = @client.repository(@options[:repository]).default_branch if options[:branch] == :default
+
       @logger.info "Fetching repository: #{@options[:repository]} (branch: #{@options[:branch]})"
       begin
         validate_repository_access
