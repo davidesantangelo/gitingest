@@ -215,8 +215,6 @@ module Gitingest
 
     # Fetch repository contents and apply exclusion filters
     def fetch_repository_contents
-      options[:branch] = @client.repository(@options[:repository]).default_branch if options[:branch] == :default
-
       @logger.info "Fetching repository: #{@options[:repository]} (branch: #{@options[:branch]})"
       begin
         validate_repository_access
@@ -246,6 +244,8 @@ module Gitingest
       rescue Octokit::NotFound
         raise "Repository '#{@options[:repository]}' not found or is private. Check the repository name or provide a valid token."
       end
+
+      options[:branch] = @client.repository(@options[:repository]).default_branch if options[:branch] == :default
 
       begin
         @client.branch(@options[:repository], @options[:branch])
