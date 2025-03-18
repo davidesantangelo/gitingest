@@ -67,7 +67,7 @@ gitingest --repository user/repo --verbose
 - `-t, --token TOKEN`: GitHub personal access token [Optional but recommended]
 - `-o, --output FILE`: Output file for the prompt [Default: reponame_prompt.txt]
 - `-e, --exclude PATTERN`: File patterns to exclude (comma separated)
-- `-b, --branch BRANCH`: Repository branch [Default: main]
+- `-b, --branch BRANCH`: Repository branch [Default: repository's default branch]
 - `-s, --show-structure`: Show repository directory structure instead of generating prompt
 - `-T, --threads COUNT`: Number of concurrent threads [Default: auto-detected]
 - `-W, --thread-timeout SECONDS`: Thread pool shutdown timeout [Default: 60]

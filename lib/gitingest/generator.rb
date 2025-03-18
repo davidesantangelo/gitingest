@@ -238,14 +238,13 @@ module Gitingest
     # Validate repository and branch access
     def validate_repository_access
       begin
-        @client.repository(@options[:repository])
+        repo = @client.repository(@options[:repository])
+        @options[:branch] = repo.default_branch if @options[:branch] == :default
       rescue Octokit::Unauthorized
         raise "Authentication error: Invalid or expired GitHub token"
       rescue Octokit::NotFound
         raise "Repository '#{@options[:repository]}' not found or is private. Check the repository name or provide a valid token."
       end
-
-      options[:branch] = @client.repository(@options[:repository]).default_branch if options[:branch] == :default
 
       begin
         @client.branch(@options[:repository], @options[:branch])

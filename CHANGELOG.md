@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.6.0] - 2025-03-18
+
+### Changed
+- Improved default branch handling to use repository's actual default branch instead of hardcoding "main"
+- Enhanced error handling in repository access validation
+- Updated documentation to reflect the correct default branch behavior
+- Fixed issues with repository validation in tests
+
+---
+
 ## [0.5.0] - 2025-03-10
 
 ### Added

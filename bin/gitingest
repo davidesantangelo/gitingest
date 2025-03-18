@@ -22,7 +22,7 @@ parser = OptionParser.new do |opts|
     options[:output_file] = file
   end
 
-  opts.on("-b", "--branch BRANCH", "Repository branch [Default: main]") do |branch|
+  opts.on("-b", "--branch BRANCH", "Repository branch [Default: repository's default branch]") do |branch|
     options[:branch] = branch
   end
 

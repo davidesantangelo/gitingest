@@ -17,7 +17,7 @@ RSpec.describe Gitingest do
 
     it "sets default values" do
       generator = Gitingest::Generator.new(repository: mock_repo)
-      expect(generator.options[:branch]).to eq("main")
+      expect(generator.options[:branch]).to eq(:default)
       expect(generator.options[:output_file]).to eq("repo_prompt.txt")
       expect(generator.options[:threads]).to eq(Gitingest::Generator::DEFAULT_THREAD_COUNT)
       expect(generator.options[:thread_timeout]).to eq(Gitingest::Generator::DEFAULT_THREAD_TIMEOUT)
@@ -94,9 +94,10 @@ RSpec.describe Gitingest do
 
     describe "repository access validation" do
       let(:generator) { Gitingest::Generator.new(repository: mock_repo) }
+      let(:mock_repository) { double("repository", default_branch: "main") }
 
       before do
-        allow(generator.client).to receive(:repository)
+        allow(generator.client).to receive(:repository).and_return(mock_repository)
         allow(generator.client).to receive(:branch)
       end
 
