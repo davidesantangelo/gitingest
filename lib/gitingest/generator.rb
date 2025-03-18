@@ -187,7 +187,7 @@ module Gitingest
       raise ArgumentError, "Repository is required" unless @options[:repository]
 
       @options[:output_file] ||= "#{@options[:repository].split("/").last}_prompt.txt"
-      @options[:branch] ||= "main"
+      @options[:branch] ||= :default
       @options[:exclude] ||= []
       @options[:threads] ||= DEFAULT_THREAD_COUNT
       @options[:thread_timeout] ||= DEFAULT_THREAD_TIMEOUT
@@ -244,6 +244,8 @@ module Gitingest
       rescue Octokit::NotFound
         raise "Repository '#{@options[:repository]}' not found or is private. Check the repository name or provide a valid token."
       end
+
+      options[:branch] = @client.repository(@options[:repository]).default_branch if options[:branch] == :default
 
       begin
         @client.branch(@options[:repository], @options[:branch])
