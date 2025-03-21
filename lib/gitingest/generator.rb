@@ -199,22 +199,47 @@ module Gitingest
 
     # Configure the GitHub API client
     def configure_client
-      # Configure Octokit API endpoint if provided (for GitHub Enterprise)
-      if @options[:api_endpoint]
-        begin
-          uri = URI.parse(@options[:api_endpoint])
-          raise ArgumentError, "Invalid API endpoint URL" unless uri.is_a?(URI::HTTP) || uri.is_a?(URI::HTTPS)
-          Octokit.configure do |c|
-            c.api_endpoint = @options[:api_endpoint]
-          end
-          @logger.info "Using GitHub Enterprise API endpoint: #{@options[:api_endpoint]}"
-        rescue URI::InvalidURIError
-          raise ArgumentError, "Invalid API endpoint URL"
-        end
+      configure_api_endpoint if @options[:api_endpoint]
+
+      create_client
+
+      log_authentication_details
+    end
+
+    # Configure Octokit to use GitHub Enterprise API endpoint
+    def configure_api_endpoint
+      endpoint = @options[:api_endpoint]
+
+      # Validate that the endpoint is a proper URL
+      unless valid_api_endpoint?(endpoint)
+        raise ArgumentError, "Invalid API endpoint URL: #{endpoint}. Must be a valid URL with HTTPS protocol."
       end
 
-      @client = @options[:token] ? Octokit::Client.new(access_token: @options[:token]) : Octokit::Client.new
+      Octokit.configure do |c|
+        c.api_endpoint = endpoint
+      end
+      @logger.info "Using GitHub Enterprise API endpoint: #{endpoint}"
+    end
 
+    # Validate if the provided API endpoint is a proper URL
+    def valid_api_endpoint?(url)
+      uri = URI.parse(url)
+      uri.is_a?(URI::HTTP) && uri.scheme == 'https' && !uri.host.nil?
+    rescue URI::InvalidURIError
+      false
+    end
+
+    # Create Octokit client with or without authentication
+    def create_client
+      @client = if @options[:token]
+                  Octokit::Client.new(access_token: @options[:token])
+                else
+                  Octokit::Client.new
+                end
+    end
+
+    # Log authentication status
+    def log_authentication_details
       if @options[:token]
         @logger.info "Using provided GitHub token for authentication"
       else
