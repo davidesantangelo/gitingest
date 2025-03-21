@@ -97,6 +97,7 @@ module Gitingest
     # @option options [Integer] :threads Number of threads to use (default: auto-detected)
     # @option options [Integer] :thread_timeout Seconds to wait for thread pool shutdown (default: 60)
     # @option options [Boolean] :show_structure Show repository directory structure (default: false)
+    # @option options [String] :api_endpoint GitHub Enterprise API endpoint URL (e.g., "https://github.example.com/api/v3/")
     def initialize(options = {})
       @options = options
       @repo_files = []
@@ -193,12 +194,52 @@ module Gitingest
       @options[:thread_timeout] ||= DEFAULT_THREAD_TIMEOUT
       @options[:show_structure] ||= false
       @excluded_patterns = DEFAULT_EXCLUDES + @options[:exclude]
+      # No default for api_endpoint as it's optional
     end
 
     # Configure the GitHub API client
     def configure_client
-      @client = @options[:token] ? Octokit::Client.new(access_token: @options[:token]) : Octokit::Client.new
+      configure_api_endpoint if @options[:api_endpoint]
 
+      create_client
+
+      log_authentication_details
+    end
+
+    # Configure Octokit to use GitHub Enterprise API endpoint
+    def configure_api_endpoint
+      endpoint = @options[:api_endpoint]
+
+      # Validate that the endpoint is a proper URL
+      unless valid_api_endpoint?(endpoint)
+        raise ArgumentError, "Invalid API endpoint URL: #{endpoint}. Must be a valid URL with HTTPS protocol."
+      end
+
+      Octokit.configure do |c|
+        c.api_endpoint = endpoint
+      end
+      @logger.info "Using GitHub Enterprise API endpoint: #{endpoint}"
+    end
+
+    # Validate if the provided API endpoint is a proper URL
+    def valid_api_endpoint?(url)
+      uri = URI.parse(url)
+      uri.is_a?(URI::HTTP) && uri.scheme == 'https' && !uri.host.nil?
+    rescue URI::InvalidURIError
+      false
+    end
+
+    # Create Octokit client with or without authentication
+    def create_client
+      @client = if @options[:token]
+                  Octokit::Client.new(access_token: @options[:token])
+                else
+                  Octokit::Client.new
+                end
+    end
+
+    # Log authentication status
+    def log_authentication_details
       if @options[:token]
         @logger.info "Using provided GitHub token for authentication"
       else
