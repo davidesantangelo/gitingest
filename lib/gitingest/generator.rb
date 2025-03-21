@@ -201,10 +201,16 @@ module Gitingest
     def configure_client
       # Configure Octokit API endpoint if provided (for GitHub Enterprise)
       if @options[:api_endpoint]
-        Octokit.configure do |c|
-          c.api_endpoint = @options[:api_endpoint]
+        begin
+          uri = URI.parse(@options[:api_endpoint])
+          raise ArgumentError, "Invalid API endpoint URL" unless uri.is_a?(URI::HTTP) || uri.is_a?(URI::HTTPS)
+          Octokit.configure do |c|
+            c.api_endpoint = @options[:api_endpoint]
+          end
+          @logger.info "Using GitHub Enterprise API endpoint: #{@options[:api_endpoint]}"
+        rescue URI::InvalidURIError
+          raise ArgumentError, "Invalid API endpoint URL"
         end
-        @logger.info "Using GitHub Enterprise API endpoint: #{@options[:api_endpoint]}"
       end
 
       @client = @options[:token] ? Octokit::Client.new(access_token: @options[:token]) : Octokit::Client.new

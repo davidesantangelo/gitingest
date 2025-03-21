@@ -107,6 +107,35 @@ RSpec.describe Gitingest do
         expect(generator.client).not_to be_nil
       end
 
+      it "validates API endpoint URL format" do
+        invalid_endpoints = [
+          "not-a-url",
+          "ftp://example.com",
+          "//invalid-url",
+          "https://"
+        ]
+
+        invalid_endpoints.each do |invalid_endpoint|
+          # Mock the URI parsing to ensure the validation is triggered
+          # without external dependencies affecting the test
+
+          if invalid_endpoint == "not-a-url" || invalid_endpoint == "//invalid-url"
+            # These would throw URI::InvalidURIError
+            expect(URI).to receive(:parse).with(invalid_endpoint).and_raise(URI::InvalidURIError)
+          else
+            # For "ftp:" or incomplete URLs, they parse but aren't HTTP/HTTPS
+            uri_double = double("uri")
+            allow(URI).to receive(:parse).with(invalid_endpoint).and_return(uri_double)
+            allow(uri_double).to receive(:is_a?).with(URI::HTTP).and_return(false)
+            allow(uri_double).to receive(:is_a?).with(URI::HTTPS).and_return(false)
+          end
+
+          expect {
+            Gitingest::Generator.new(repository: mock_repo, api_endpoint: invalid_endpoint)
+          }.to raise_error(ArgumentError, "Invalid API endpoint URL")
+        end
+      end
+
       it "doesn't configure custom API endpoint when not provided" do
         # Verify Octokit.configure is not called when no api_endpoint is given
         expect(Octokit).not_to receive(:configure)
