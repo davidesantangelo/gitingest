@@ -97,6 +97,7 @@ module Gitingest
     # @option options [Integer] :threads Number of threads to use (default: auto-detected)
     # @option options [Integer] :thread_timeout Seconds to wait for thread pool shutdown (default: 60)
     # @option options [Boolean] :show_structure Show repository directory structure (default: false)
+    # @option options [String] :api_endpoint GitHub Enterprise API endpoint URL (e.g., "https://github.example.com/api/v3/")
     def initialize(options = {})
       @options = options
       @repo_files = []
@@ -193,10 +194,19 @@ module Gitingest
       @options[:thread_timeout] ||= DEFAULT_THREAD_TIMEOUT
       @options[:show_structure] ||= false
       @excluded_patterns = DEFAULT_EXCLUDES + @options[:exclude]
+      # No default for api_endpoint as it's optional
     end
 
     # Configure the GitHub API client
     def configure_client
+      # Configure Octokit API endpoint if provided (for GitHub Enterprise)
+      if @options[:api_endpoint]
+        Octokit.configure do |c|
+          c.api_endpoint = @options[:api_endpoint]
+        end
+        @logger.info "Using GitHub Enterprise API endpoint: #{@options[:api_endpoint]}"
+      end
+
       @client = @options[:token] ? Octokit::Client.new(access_token: @options[:token]) : Octokit::Client.new
 
       if @options[:token]
