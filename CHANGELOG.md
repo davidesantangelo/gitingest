@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1] - 2025-03-26
+
+### Fixed
+- Fixed error "target of repeat operator is not specified" when using `--exclude` with glob patterns like `*.md`
+
+---
+
 ## [0.6.0] - 2025-03-18
 
 ### Changed

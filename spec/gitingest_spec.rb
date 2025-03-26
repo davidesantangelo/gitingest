@@ -77,6 +77,41 @@ RSpec.describe Gitingest do
         expect(generator.send(:excluded_file?, "lib/gitingest.rb")).to be false
         expect(generator.send(:excluded_file?, "README.md")).to be false
       end
+
+      context "with glob patterns" do
+        it "excludes files matching simple glob patterns" do
+          generator = Gitingest::Generator.new(repository: "user/repo", exclude: ["*.md"])
+          expect(generator.send(:excluded_file?, "README.md")).to be true
+          expect(generator.send(:excluded_file?, "docs/guide.md")).to be true
+          expect(generator.send(:excluded_file?, "src/app.rb")).to be false
+        end
+
+        it "handles multiple glob patterns" do
+          generator = Gitingest::Generator.new(repository: "user/repo", exclude: ["*.md", "*.yml"])
+          expect(generator.send(:excluded_file?, "README.md")).to be true
+          expect(generator.send(:excluded_file?, "config.yml")).to be true
+          expect(generator.send(:excluded_file?, "src/app.rb")).to be false
+        end
+
+        it "handles directory-specific glob patterns" do
+          generator = Gitingest::Generator.new(repository: "user/repo", exclude: ["docs/*"])
+          expect(generator.send(:excluded_file?, "docs/guide.md")).to be true
+          expect(generator.send(:excluded_file?, "docs/api.json")).to be true
+          expect(generator.send(:excluded_file?, "src/docs.rb")).to be false
+          expect(generator.send(:excluded_file?, "README.md")).to be false
+        end
+
+        it "combines glob patterns with default excludes" do
+          generator = Gitingest::Generator.new(repository: "user/repo", exclude: ["*.md"])
+
+          # Should exclude both .git directory (default) and markdown files (custom)
+          expect(generator.send(:excluded_file?, ".git/config")).to be true
+          expect(generator.send(:excluded_file?, "README.md")).to be true
+
+          # Should not exclude regular code files
+          expect(generator.send(:excluded_file?, "src/app.rb")).to be false
+        end
+      end
     end
 
     describe "client configuration" do
@@ -344,13 +379,13 @@ RSpec.describe Gitingest do
         structure = generator.generate_directory_structure
         expect(structure).to include("Directory structure:")
         expect(structure).to include("└── repo/")
-        expect(structure).to include("├── README.md")
-        expect(structure).to include("├── bin/")
-        expect(structure).to include("│   └── gitingest")
-        expect(structure).to include("└── lib/")
-        expect(structure).to include("    ├── gitingest.rb")
-        expect(structure).to include("    └── gitingest/")
-        expect(structure).to include("        └── version.rb")
+        expect(structure).to include("    ├── README.md")
+        expect(structure).to include("    ├── bin/")
+        expect(structure).to include("    │   └── gitingest")
+        expect(structure).to include("    └── lib/")
+        expect(structure).to include("        ├── gitingest.rb")
+        expect(structure).to include("        └── gitingest/")
+        expect(structure).to include("            └── version.rb")
       end
 
       it "handles an empty repository gracefully" do

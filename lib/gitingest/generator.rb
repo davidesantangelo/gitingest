@@ -56,7 +56,7 @@ module Gitingest
       ".*\.o$", ".*\.obj$", ".*\.dll$", ".*\.dylib$", ".*\.exe$",
       ".*\.lib$", ".*\.out$", ".*\.a$", ".*\.pdb$", ".*\.nupkg$",
 
-      # Language specific files
+      # Language-specific files
       ".*\.min\.js$", ".*\.min\.css$", ".*\.map$", ".*\.tfstate.*",
       ".*\.gem$", ".*\.ruby-version", ".*\.ruby-gemset", ".*\.rvmrc",
       ".*\.rs\.bk$", ".*\.gradle", ".*\.suo", ".*\.user", ".*\.userosscache",
@@ -65,38 +65,24 @@ module Gitingest
       "\.swiftpm/", "\.build/"
     ].freeze
 
-    # Optimization: pattern for dot files/directories
+    # Pattern for dot files/directories
     DOT_FILE_PATTERN = %r{(?-mix:(^\.|/\.))}
 
     # Maximum number of files to process to prevent memory overload
     MAX_FILES = 1000
 
-    # Optimization: increased buffer size to reduce I/O operations
+    # Buffer size to reduce I/O operations
     BUFFER_SIZE = 250
 
-    # Optimization: thread-local buffer threshold
+    # Thread-local buffer threshold
     LOCAL_BUFFER_THRESHOLD = 50
 
-    # Add configurable threading options
+    # Default threading options
     DEFAULT_THREAD_COUNT = [Concurrent.processor_count, 8].min
     DEFAULT_THREAD_TIMEOUT = 60 # seconds
 
     attr_reader :options, :client, :repo_files, :excluded_patterns, :logger
 
-    # Initialize a new Generator with the given options
-    #
-    # @param options [Hash] Configuration options
-    # @option options [String] :repository GitHub repository in format "username/repo"
-    # @option options [String] :token GitHub personal access token
-    # @option options [String] :branch Repository branch (default: "main")
-    # @option options [String] :output_file Output file path
-    # @option options [Array<String>] :exclude Additional patterns to exclude
-    # @option options [Boolean] :quiet Reduce logging to errors only
-    # @option options [Boolean] :verbose Increase logging verbosity
-    # @option options [Logger] :logger Custom logger instance
-    # @option options [Integer] :threads Number of threads to use (default: auto-detected)
-    # @option options [Integer] :thread_timeout Seconds to wait for thread pool shutdown (default: 60)
-    # @option options [Boolean] :show_structure Show repository directory structure (default: false)
     def initialize(options = {})
       @options = options
       @repo_files = []
@@ -107,68 +93,46 @@ module Gitingest
       compile_excluded_patterns
     end
 
-    # Main execution method for command line
     def run
       fetch_repository_contents
-
       if @options[:show_structure]
         puts generate_directory_structure
         return
       end
-
       generate_file
     end
 
-    # Generate content and save it to a file
-    #
-    # @return [String] Path to the generated file
     def generate_file
       fetch_repository_contents if @repo_files.empty?
-
       @logger.info "Generating file for #{@options[:repository]}"
       File.open(@options[:output_file], "w") do |file|
         process_content_to_output(file)
       end
-
       @logger.info "Prompt generated and saved to #{@options[:output_file]}"
       @options[:output_file]
     end
 
-    # Generate content and return it as a string
-    # Useful for programmatic usage
-    #
-    # @return [String] The generated repository content
     def generate_prompt
       @logger.info "Generating in-memory prompt for #{@options[:repository]}"
-
       fetch_repository_contents if @repo_files.empty?
-
       content = StringIO.new
       process_content_to_output(content)
-
       result = content.string
       @logger.info "Generated #{result.size} bytes of content in memory"
       result
     end
 
-    # Generate a textual representation of the repository's directory structure
-    #
-    # @return [String] The directory structure as a formatted string
     def generate_directory_structure
       fetch_repository_contents if @repo_files.empty?
-
       @logger.info "Generating directory structure for #{@options[:repository]}"
-
       repo_name = @options[:repository].split("/").last
       structure = DirectoryStructureBuilder.new(repo_name, @repo_files).build
-
       @logger.info "\n"
       structure
     end
 
     private
 
-    # Set up logging based on verbosity options
     def setup_logger
       @logger = @options[:logger] || Logger.new($stdout)
       @logger.level = if @options[:quiet]
@@ -178,11 +142,9 @@ module Gitingest
                       else
                         Logger::INFO
                       end
-      # Simplify logger format for command line usage
       @logger.formatter = proc { |severity, _, _, msg| "#{severity == "INFO" ? "" : "[#{severity}] "}#{msg}\n" }
     end
 
-    # Validate and set default options
     def validate_options
       raise ArgumentError, "Repository is required" unless @options[:repository]
 
@@ -195,10 +157,8 @@ module Gitingest
       @excluded_patterns = DEFAULT_EXCLUDES + @options[:exclude]
     end
 
-    # Configure the GitHub API client
     def configure_client
       @client = @options[:token] ? Octokit::Client.new(access_token: @options[:token]) : Octokit::Client.new
-
       if @options[:token]
         @logger.info "Using provided GitHub token for authentication"
       else
@@ -207,73 +167,152 @@ module Gitingest
       end
     end
 
-    # Optimization: Create a combined regex for faster exclusion checking
     def compile_excluded_patterns
-      patterns = @excluded_patterns.map { |pattern| "(#{pattern})" }
-      @combined_exclude_regex = Regexp.new("#{DOT_FILE_PATTERN.source}|#{patterns.join("|")}")
+      @default_patterns = DEFAULT_EXCLUDES.map { |pattern| Regexp.new(pattern) }
+      @custom_patterns = []
+      @glob_patterns_with_char_classes = []
+
+      @options[:exclude].each do |glob_pattern|
+        if glob_pattern.include?("[") && glob_pattern.include?("]")
+          @glob_patterns_with_char_classes << glob_pattern
+        else
+          @custom_patterns << Regexp.new(glob_to_regex(glob_pattern))
+        end
+      end
     end
 
-    # Fetch repository contents and apply exclusion filters
+    def glob_to_regex(pattern)
+      result = "^"
+      in_brackets = false
+      pattern.each_char do |c|
+        case c
+        when "[" then in_brackets = true
+                      result += c
+        when "]" then in_brackets = false
+                      result += c
+        when "*" then result += in_brackets ? "*" : ".*"
+        when ".", "\\", "+", "?", "|", "{", "}", "(", ")", "^", "$" then result += in_brackets ? c : "\\#{c}"
+        else result += c
+        end
+      end
+      "#{result}$"
+    end
+
     def fetch_repository_contents
       @logger.info "Fetching repository: #{@options[:repository]} (branch: #{@options[:branch]})"
-      begin
-        validate_repository_access
-        repo_tree = @client.tree(@options[:repository], @options[:branch], recursive: true)
-        @repo_files = repo_tree.tree.select { |item| item.type == "blob" && !excluded_file?(item.path) }
-
-        if @repo_files.size > MAX_FILES
-          @logger.warn "Warning: Found #{@repo_files.size} files, limited to #{MAX_FILES}."
-          @repo_files = @repo_files.first(MAX_FILES)
-        end
-        @logger.info "Found #{@repo_files.size} files after exclusion filters"
-      rescue Octokit::Unauthorized
-        raise "Authentication error: Invalid or expired GitHub token. Please provide a valid token."
-      rescue Octokit::NotFound
-        raise "Repository not found: '#{@options[:repository]}' or branch '#{@options[:branch]}' doesn't exist or is private."
-      rescue Octokit::Error => e
-        raise "Error accessing repository: #{e.message}"
+      validate_repository_access
+      repo_tree = @client.tree(@options[:repository], @options[:branch], recursive: true)
+      @repo_files = repo_tree.tree.select { |item| item.type == "blob" && !excluded_file?(item.path) }
+      if @repo_files.size > MAX_FILES
+        @logger.warn "Warning: Found #{@repo_files.size} files, limited to #{MAX_FILES}."
+        @repo_files = @repo_files.first(MAX_FILES)
       end
+      @logger.info "Found #{@repo_files.size} files after exclusion filters"
+    rescue Octokit::Unauthorized
+      raise "Authentication error: Invalid or expired GitHub token."
+    rescue Octokit::NotFound
+      raise "Repository not found: '#{@options[:repository]}' or branch '#{@options[:branch]}' doesn't exist or is private."
+    rescue Octokit::Error => e
+      raise "Error accessing repository: #{e.message}"
     end
 
     # Validate repository and branch access
     def validate_repository_access
-      begin
-        repo = @client.repository(@options[:repository])
-        @options[:branch] = repo.default_branch if @options[:branch] == :default
-      rescue Octokit::Unauthorized
-        raise "Authentication error: Invalid or expired GitHub token"
-      rescue Octokit::NotFound
-        raise "Repository '#{@options[:repository]}' not found or is private. Check the repository name or provide a valid token."
-      end
+      repo = @client.repository(@options[:repository])
+      @options[:branch] = repo.default_branch if @options[:branch] == :default
+
+      # If repository check succeeds, store this fact before trying branch
+      @repository_exists = true
 
       begin
         @client.branch(@options[:repository], @options[:branch])
       rescue Octokit::NotFound
+        # If we got here, the repository exists but the branch doesn't
         raise "Branch '#{@options[:branch]}' not found in repository '#{@options[:repository]}'"
       end
+    rescue Octokit::Unauthorized
+      raise "Authentication error: Invalid or expired GitHub token"
+    rescue Octokit::NotFound
+      # Only reach this for repository not found (branch errors handled separately)
+      raise "Repository '#{@options[:repository]}' not found or is private. Check the repository name or provide a valid token."
     end
 
-    # Optimization: Optimized file exclusion check with combined regex
     def excluded_file?(path)
-      path.match?(@combined_exclude_regex)
+      return true if path.match?(DOT_FILE_PATTERN)
+      return true if @default_patterns.any? { |pattern| path.match?(pattern) }
+      return true if @custom_patterns.any? { |pattern| path.match?(pattern) }
+
+      @glob_patterns_with_char_classes.any? { |glob_pattern| glob_match?(glob_pattern, path) }
     end
 
-    # Common implementation for both file and string output
+    def glob_match?(pattern, string)
+      return true if pattern == string
+      return false if !pattern.match?(/[*?\[]/) && pattern != string
+
+      pattern_idx = 0
+      string_idx = 0
+
+      while pattern_idx < pattern.length && string_idx < string.length
+        case pattern[pattern_idx]
+        when "*"
+          pattern_idx += 1 while pattern_idx + 1 < pattern.length && pattern[pattern_idx + 1] == "*"
+          return true if pattern_idx == pattern.length - 1
+
+          next_char = pattern[pattern_idx + 1]
+          pattern_idx += 1
+          while string_idx < string.length
+            break if string[string_idx] == next_char || next_char == "?" ||
+                     (next_char == "[" && char_class_match?(pattern, pattern_idx, string[string_idx]))
+
+            string_idx += 1
+          end
+        when "?" then string_idx += 1
+                      pattern_idx += 1
+        when "["
+          return false unless char_class_match?(pattern, pattern_idx, string[string_idx])
+
+          pattern_idx += 1
+          pattern_idx += 1 while pattern_idx < pattern.length && pattern[pattern_idx] != "]"
+          pattern_idx += 1
+          string_idx += 1
+        when string[string_idx] then string_idx += 1
+                                     pattern_idx += 1
+        else return false
+        end
+      end
+
+      pattern_idx += 1 while pattern_idx < pattern.length && pattern[pattern_idx] == "*"
+      pattern_idx == pattern.length && string_idx == string.length
+    end
+
+    def char_class_match?(pattern, class_start_idx, char)
+      idx = class_start_idx + 1
+      match = false
+      negate = pattern[idx] == "^" && (idx += 1)
+
+      while idx < pattern.length && pattern[idx] != "]"
+        if idx + 2 < pattern.length && pattern[idx + 1] == "-"
+          range_start = pattern[idx]
+          range_end = pattern[idx + 2]
+          match = true if char >= range_start && char <= range_end
+          idx += 3
+        else
+          match = true if pattern[idx] == char
+          idx += 1
+        end
+        break if match
+      end
+      negate ? !match : match
+    end
+
     def process_content_to_output(output)
       @logger.debug "Using thread pool with #{@options[:threads]} threads"
-
       buffer = []
       progress = ProgressIndicator.new(@repo_files.size, @logger)
-
-      # Thread-local buffers to reduce mutex contention
       thread_buffers = {}
       mutex = Mutex.new
       errors = []
-
-      # Thread pool based on configuration
       pool = Concurrent::FixedThreadPool.new(@options[:threads])
-
-      # Group files by priority
       prioritized_files = prioritize_files(@repo_files)
 
       prioritized_files.each_with_index do |repo_file, index|
@@ -281,12 +320,9 @@ module Gitingest
           thread_id = Thread.current.object_id
           thread_buffers[thread_id] ||= []
           local_buffer = thread_buffers[thread_id]
-
           begin
             content = fetch_file_content_with_retry(repo_file.path)
-            result = format_file_content(repo_file.path, content)
-            local_buffer << result
-
+            local_buffer << format_file_content(repo_file.path, content)
             if local_buffer.size >= LOCAL_BUFFER_THRESHOLD
               mutex.synchronize do
                 buffer.concat(local_buffer)
@@ -294,39 +330,24 @@ module Gitingest
                 local_buffer.clear
               end
             end
-
             progress.update(index + 1)
           rescue Octokit::Error => e
-            mutex.synchronize do
-              errors << "Error fetching #{repo_file.path}: #{e.message}"
-              @logger.error "Error fetching #{repo_file.path}: #{e.message}"
-            end
+            mutex.synchronize { errors << "Error fetching #{repo_file.path}: #{e.message}" }
+            @logger.error "Error fetching #{repo_file.path}: #{e.message}"
           rescue StandardError => e
-            mutex.synchronize do
-              errors << "Unexpected error processing #{repo_file.path}: #{e.message}"
-              @logger.error "Unexpected error processing #{repo_file.path}: #{e.message}"
-            end
+            mutex.synchronize { errors << "Unexpected error processing #{repo_file.path}: #{e.message}" }
+            @logger.error "Unexpected error processing #{repo_file.path}: #{e.message}"
           end
         end
       end
 
-      begin
-        pool.shutdown
-        wait_success = pool.wait_for_termination(@options[:thread_timeout])
+      pool.shutdown
+      pool.wait_for_termination(@options[:thread_timeout]) || (@logger.warn "Thread pool timeout, forcing termination"
 
-        unless wait_success
-          @logger.warn "Thread pool did not shut down within #{@options[:thread_timeout]} seconds, forcing termination"
-          pool.kill
-        end
-      rescue StandardError => e
-        @logger.error "Error during thread pool shutdown: #{e.message}"
-      end
+                                                               pool.kill)
 
-      # Process remaining files in thread-local buffers
       mutex.synchronize do
-        thread_buffers.each_value do |local_buffer|
-          buffer.concat(local_buffer) unless local_buffer.empty?
-        end
+        thread_buffers.each_value { |local_buffer| buffer.concat(local_buffer) unless local_buffer.empty? }
         write_buffer(output, buffer) unless buffer.empty?
       end
 
@@ -336,7 +357,6 @@ module Gitingest
       @logger.debug "First few errors: #{errors.first(3).join(", ")}" if @logger.debug?
     end
 
-    # Format a file's content for the prompt
     def format_file_content(path, content)
       <<~TEXT
         ================================================================
@@ -347,21 +367,18 @@ module Gitingest
       TEXT
     end
 
-    # Optimization: Fetch file content with exponential backoff for rate limiting
     def fetch_file_content_with_retry(path, retries = 3, base_delay = 2)
       content = @client.contents(@options[:repository], path: path, ref: @options[:branch])
       Base64.decode64(content.content)
     rescue Octokit::TooManyRequests
       raise unless retries.positive?
 
-      # Optimization: Exponential backoff with jitter for better rate limit handling
       delay = base_delay**(4 - retries) * (0.8 + 0.4 * rand)
       @logger.warn "Rate limit exceeded, waiting #{delay.round(1)} seconds..."
       sleep(delay)
       fetch_file_content_with_retry(path, retries - 1, base_delay)
     end
 
-    # Write buffer contents to file and clear buffer
     def write_buffer(file, buffer)
       return if buffer.empty?
 
@@ -369,26 +386,20 @@ module Gitingest
       buffer.clear
     end
 
-    # Sort files by estimated processing priority
     def prioritize_files(files)
-      # Sort files by estimated size (based on extension)
-      # This helps with better thread distribution - process small files first
       files.sort_by do |file|
         path = file.path.downcase
-        if path.end_with?(".md", ".txt", ".json", ".yaml", ".yml")
-          0  # Process documentation and config files first (usually small)
-        elsif path.end_with?(".rb", ".py", ".js", ".ts", ".go", ".java", ".c", ".cpp", ".h")
-          1  # Then process code files (medium size)
+        if path.end_with?(".md", ".txt", ".json", ".yaml", ".yml") then 0
+        elsif path.end_with?(".rb", ".py", ".js", ".ts", ".go", ".java", ".c", ".cpp", ".h") then 1
         else
-          2  # Other files last
+          2
         end
       end
     end
   end
 
-  # Helper class for showing progress in CLI with visual bar
   class ProgressIndicator
-    BAR_WIDTH = 30 # Width of the progress bar
+    BAR_WIDTH = 30
 
     def initialize(total, logger)
       @total = total
@@ -396,77 +407,47 @@ module Gitingest
       @last_percent = 0
       @start_time = Time.now
       @last_update_time = Time.now
-      @update_interval = 0.5 # Limit updates to twice per second
+      @update_interval = 0.5
     end
 
-    # Update progress with visual bar
     def update(current)
-      # Avoid updating too frequently
       now = Time.now
       return if now - @last_update_time < @update_interval && current != @total
 
       @last_update_time = now
       percent = (current.to_f / @total * 100).round
-
-      # Only update at meaningful increments or completion
       return unless percent > @last_percent || current == @total
 
       elapsed = now - @start_time
-
-      # Generate progress bar
       progress_chars = (BAR_WIDTH * (current.to_f / @total)).round
       bar = "[#{"|" * progress_chars}#{" " * (BAR_WIDTH - progress_chars)}]"
-
-      # Calculate ETA
-      eta_string = ""
-      if current > 1 && percent < 100
-        remaining = (elapsed / current) * (@total - current)
-        eta_string = " ETA: #{format_time(remaining)}"
-      end
-
-      # Calculate rate (files per second)
+      eta_string = current > 1 && percent < 100 ? " ETA: #{format_time((elapsed / current) * (@total - current))}" : ""
       rate = begin
-        current / elapsed
+        (current / elapsed).round(1)
       rescue StandardError
         0
       end
-      rate_string = " (#{rate.round(1)} files/sec)"
-
-      # Clear line and print progress bar
-      print "\r\e[K" # Clear the line
-      print "#{bar} #{percent}% | #{current}/#{@total} files#{rate_string}#{eta_string}"
-      print "\n" if current == @total # Add newline when complete
-
-      # Also log to logger at less frequent intervals
+      print "\r\e[K#{bar} #{percent}% | #{current}/#{@total} files (#{rate} files/sec)#{eta_string}"
+      print "\n" if current == @total
       if (percent % 10).zero? && percent != @last_percent || current == @total
         @logger.info "Processing: #{percent}% complete (#{current}/#{@total} files)#{eta_string}"
       end
-
       @last_percent = percent
     end
 
     private
 
-    # Format seconds into a human-readable time string
     def format_time(seconds)
       return "< 1s" if seconds < 1
 
       case seconds
-      when 0...60
-        "#{seconds.round}s"
-      when 60...3600
-        minutes = (seconds / 60).floor
-        secs = (seconds % 60).round
-        "#{minutes}m #{secs}s"
-      else
-        hours = (seconds / 3600).floor
-        minutes = ((seconds % 3600) / 60).floor
-        "#{hours}h #{minutes}m"
+      when 0...60 then "#{seconds.round}s"
+      when 60...3600 then "#{(seconds / 60).floor}m #{(seconds % 60).round}s"
+      else "#{(seconds / 3600).floor}h #{((seconds % 3600) / 60).floor}m"
       end
     end
   end
 
-  # Helper class to build directory structure visualization
   class DirectoryStructureBuilder
     def initialize(root_name, files)
       @root_name = root_name
@@ -475,21 +456,17 @@ module Gitingest
 
     def build
       tree = { @root_name => {} }
-
       @files.sort.each do |path|
         parts = path.split("/")
         current = tree[@root_name]
-
         parts.each do |part|
-          if part == parts.last
-            current[part] = nil
+          if part == parts.last then current[part] = nil
           else
             current[part] ||= {}
             current = current[part]
           end
         end
       end
-
       output = ["Directory structure:"]
       render_tree(tree, "", output)
       output.join("\n")
@@ -502,18 +479,18 @@ module Gitingest
 
       tree.keys.each_with_index do |key, index|
         is_last = index == tree.keys.size - 1
-        current_prefix = prefix
-
-        if prefix.empty?
-          output << "└── #{key}/"
-          current_prefix = "    "
-        else
-          connector = is_last ? "└── " : "├── "
-          item = tree[key].is_a?(Hash) ? "#{key}/" : key
-          output << "#{prefix}#{connector}#{item}"
-          current_prefix = prefix + (is_last ? "    " : "│   ")
-        end
-
+        current_prefix = if prefix.empty?
+                           "    "
+                         else
+                           prefix + (is_last ? "    " : "│   ")
+                         end
+        connector = if prefix.empty?
+                      "└── "
+                    else
+                      (is_last ? "└── " : "├── ")
+                    end
+        item = tree[key].is_a?(Hash) ? "#{key}/" : key
+        output << "#{prefix}#{connector}#{item}"
         render_tree(tree[key], current_prefix, output) if tree[key].is_a?(Hash)
       end
     end
