@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.2] - 2025-04-11
+
+### Changed
+- Updated Octokit dependency from ~> 5.0 to ~> 9.0
+- Updated various gem dependencies to their latest versions
+
 ## [0.6.1] - 2025-03-26
 
 ### Fixed
