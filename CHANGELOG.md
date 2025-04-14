@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.6.3] - 2025-04-14
+
+### Fixed
+- Fixed directory exclusion pattern to properly handle paths ending with slash
+
 ## [0.6.2] - 2025-04-11
 
 ### Changed

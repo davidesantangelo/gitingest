@@ -716,7 +716,7 @@
         <div class="header-container">
             <div class="logo">
                 <div class="logo-icon">G</div>
-                <div class="logo-text">Gitingest <span class="version-tag">v0.6.2</span></div>
+                <div class="logo-text">Gitingest <span class="version-tag">v0.6.3</span></div>
             </div>
             <nav>
                 <ul>
@@ -765,7 +765,7 @@
                         <span class="terminal-command">gem install gitingest</span>
                     </div>
                     <div class="terminal-output">
-                        Successfully installed gitingest-0.6.2<br />
+                        Successfully installed gitingest-0.6.3<br />
                         1 gem installed
                     </div>
                     <div class="terminal-line">
@@ -905,6 +905,24 @@ gitingest --repository user/repo --show-structure</code></pre>
                 <div class="timeline-item">
                     <div class="timeline-date">
                         <span class="timeline-month">Apr</span>
+                        <span class="timeline-day">15</span>
+                    </div>
+                    <div class="timeline-content">
+                        <h3 class="timeline-version">v0.6.3</h3>
+                        <p class="timeline-desc">Fixed directory exclusion pattern to properly handle paths ending with
+                            slash.</p>
+                        <div class="timeline-list">
+                            <ul>
+                                <li>Enhanced file exclusion logic to correctly filter directories when patterns end with
+                                    '/'</li>
+                                <li>Improved spec test coverage for directory exclusion patterns</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-date">
+                        <span class="timeline-month">Apr</span>
                         <span class="timeline-day">11</span>
                     </div>
                     <div class="timeline-content">
@@ -996,20 +1014,20 @@ gitingest --repository user/repo --show-structure</code></pre>
                         <span class="timeline-month">Mar</span>
                         <span class="timeline-day">03</span>
                     </div>
-                    <div class="timeline-content">
-                        <h3 class="timeline-version">v0.3.1</h3>
-                        <p class="timeline-desc">Optimized threading with configurable options and introduced
-                            exponential backoff for API requests.</p>
-                        <div class="timeline-list">
-                            <ul>
-                                <li>Configurable threading options</li>
-                                <li>Added thread-local buffers</li>
-                                <li>Improved file exclusion performance</li>
-                            </ul>
-                        </div>
+                    <div class="timeline-content"></div>
+                    <h3 class="timeline-version">v0.3.1</h3>
+                    <p class="timeline-desc">Optimized threading with configurable options and introduced
+                        exponential backoff for API requests.</p>
+                    <div class="timeline-list">
+                        <ul>
+                            <li>Configurable threading options</li>
+                            <li>Added thread-local buffers</li>
+                            <li>Improved file exclusion performance</li>
+                        </ul>
                     </div>
                 </div>
             </div>
+        </div>
         </div>
     </section>
 

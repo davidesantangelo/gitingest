@@ -181,21 +181,49 @@ module Gitingest
       end
     end
 
-    def glob_to_regex(pattern)
-      result = "^"
-      in_brackets = false
-      pattern.each_char do |c|
-        case c
-        when "[" then in_brackets = true
-                      result += c
-        when "]" then in_brackets = false
-                      result += c
-        when "*" then result += in_brackets ? "*" : ".*"
-        when ".", "\\", "+", "?", "|", "{", "}", "(", ")", "^", "$" then result += in_brackets ? c : "\\#{c}"
-        else result += c
+    # Builds a single regex from the combined default and custom exclusion patterns.
+    # Handles glob patterns and directory patterns (ending with /).
+    #
+    # @return [Regexp] The combined exclusion regex.
+    def build_exclusion_regex
+      combined_patterns = DEFAULT_EXCLUDES + @options.fetch(:exclude, [])
+      regex_parts = combined_patterns.map do |pattern|
+        if pattern.end_with?("/")
+          # Directory pattern: Match anything starting with this path
+          "^#{Regexp.escape(pattern)}"
+        else
+          # File or glob pattern: Convert glob to regex
+          glob_to_regex(pattern)
         end
       end
-      "#{result}$"
+      # Combine all parts, ensuring they match the full path or directory prefix
+      Regexp.new(regex_parts.join("|"))
+    end
+
+    # Converts a glob pattern to a Regexp string.
+    # Handles *, **, ?, and character classes.
+    # Ensures the pattern matches the entire string by default.
+    #
+    # @param glob [String] The glob pattern.
+    # @return [String] The regex pattern string.
+    def glob_to_regex(glob)
+      # More robust glob conversion
+      regex = glob.gsub(%r{/\*\*($|/)}, '/.*\\1') # Handle **/ and ** at end
+                  .gsub("*", "[^/]*")          # Match * within path segments
+                  .gsub("?", "[^/]")           # Match ? within path segments
+                  .gsub(".", '\\.')            # Escape dots
+                  .gsub("{", "(")              # Convert { to ( for grouping
+                  .gsub("}", ")")              # Convert } to ) for grouping
+                  .gsub(",", "|")              # Convert , to | for OR within groups
+
+      # Ensure the pattern matches the full path unless it was originally a directory pattern
+      # (which is handled separately now) or contains wildcards suggesting partial match.
+      # If it contains no wildcards, anchor it.
+      if glob.include?("*") || glob.include?("?") || glob.include?("{")
+        regex # Allow partial matching for wildcards
+      else
+        "^#{regex}$" # Anchor exact matches
+      end
     end
 
     def fetch_repository_contents
@@ -239,6 +267,16 @@ module Gitingest
 
     def excluded_file?(path)
       return true if path.match?(DOT_FILE_PATTERN)
+
+      # Check for directory exclusion patterns (ending with '/')
+      @options[:exclude].each do |pattern|
+        if pattern.end_with?("/") && path.start_with?(pattern)
+          @logger.debug "Excluding #{path} (matched directory pattern #{pattern})" if @logger.debug?
+          return true
+        end
+      end
+
+      # Continue with regular pattern checks
       return true if @default_patterns.any? { |pattern| path.match?(pattern) }
       return true if @custom_patterns.any? { |pattern| path.match?(pattern) }
 
