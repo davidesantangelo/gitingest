@@ -125,6 +125,59 @@ RSpec.describe Gitingest do
         generator = Gitingest::Generator.new(repository: mock_repo)
         expect(generator.client.access_token).to be_nil
       end
+
+      it "configures GitHub Enterprise API endpoint when provided" do
+        enterprise_endpoint = "https://github.example.com/api/v3/"
+
+        # Need to mock Octokit configuration
+        expect(Octokit).to receive(:configure) do |&block|
+          config = double("config")
+          expect(config).to receive(:api_endpoint=).with(enterprise_endpoint)
+          block.call(config)
+        end
+
+        generator = Gitingest::Generator.new(repository: mock_repo, api_endpoint: enterprise_endpoint)
+
+        # API endpoint doesn't get stored on the client directly, just verify the client was created
+        expect(generator.client).not_to be_nil
+      end
+
+      it "validates API endpoint URL format" do
+        invalid_endpoints = [
+          "not-a-url",
+          "ftp://example.com",
+          "//invalid-url",
+          "https://"
+        ]
+
+        invalid_endpoints.each do |invalid_endpoint|
+          # Mock the URI parsing to ensure the validation is triggered
+          # without external dependencies affecting the test
+
+          if invalid_endpoint == "not-a-url" || invalid_endpoint == "//invalid-url"
+            # These would throw URI::InvalidURIError
+            expect(URI).to receive(:parse).with(invalid_endpoint).and_raise(URI::InvalidURIError)
+          else
+            # For "ftp:" or incomplete URLs, they parse but aren't HTTP/HTTPS
+            uri_double = double("uri")
+            allow(URI).to receive(:parse).with(invalid_endpoint).and_return(uri_double)
+            allow(uri_double).to receive(:is_a?).with(URI::HTTP).and_return(false)
+            allow(uri_double).to receive(:is_a?).with(URI::HTTPS).and_return(false)
+          end
+
+          expect {
+            Gitingest::Generator.new(repository: mock_repo, api_endpoint: invalid_endpoint)
+          }.to raise_error(ArgumentError, /Invalid API endpoint URL: #{invalid_endpoint}/)
+        end
+      end
+
+      it "doesn't configure custom API endpoint when not provided" do
+        # Verify Octokit.configure is not called when no api_endpoint is given
+        expect(Octokit).not_to receive(:configure)
+
+        generator = Gitingest::Generator.new(repository: mock_repo)
+        expect(generator.client).not_to be_nil
+      end
     end
 
     describe "repository access validation" do
