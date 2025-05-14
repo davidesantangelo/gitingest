@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.6.3] - 2025-04-14
+
+### Fixed
+- Fixed directory exclusion pattern to properly handle paths ending with slash
+
+## [0.6.2] - 2025-04-11
+
+### Changed
+- Updated Octokit dependency from ~> 5.0 to ~> 9.0
+- Updated various gem dependencies to their latest versions
+
+## [0.6.1] - 2025-03-26
+
+### Fixed
+- Fixed error "target of repeat operator is not specified" when using `--exclude` with glob patterns like `*.md`
+
+---
+
 ## [0.6.0] - 2025-03-18
 
 ### Changed
