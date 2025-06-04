@@ -86,10 +86,12 @@ module Gitingest
     def initialize(options = {})
       @options = options
       @repo_files = []
-      @excluded_patterns = []
+      # @excluded_patterns = [] # This will be set after validate_options
       setup_logger
       validate_options
       configure_client
+      # Populate @excluded_patterns with raw patterns after options are validated
+      @excluded_patterns = DEFAULT_EXCLUDES + @options.fetch(:exclude, [])
       compile_excluded_patterns
     end
 
@@ -150,11 +152,11 @@ module Gitingest
 
       @options[:output_file] ||= "#{@options[:repository].split("/").last}_prompt.txt"
       @options[:branch] ||= :default
-      @options[:exclude] ||= []
+      @options[:exclude] ||= [] # Ensure :exclude is always an array
       @options[:threads] ||= DEFAULT_THREAD_COUNT
       @options[:thread_timeout] ||= DEFAULT_THREAD_TIMEOUT
       @options[:show_structure] ||= false
-      @excluded_patterns = DEFAULT_EXCLUDES + @options[:exclude]
+      # NOTE: @excluded_patterns is set in compile_excluded_patterns based on @options[:exclude] # This comment is now incorrect / removed.
     end
 
     def configure_client
@@ -169,60 +171,22 @@ module Gitingest
 
     def compile_excluded_patterns
       @default_patterns = DEFAULT_EXCLUDES.map { |pattern| Regexp.new(pattern) }
-      @custom_patterns = []
-      @glob_patterns_with_char_classes = []
+      @custom_glob_patterns = [] # For File.fnmatch
+      @directory_patterns = []
 
-      @options[:exclude].each do |glob_pattern|
-        if glob_pattern.include?("[") && glob_pattern.include?("]")
-          @glob_patterns_with_char_classes << glob_pattern
+      @options[:exclude].each do |pattern_str|
+        if pattern_str.end_with?("/")
+          @directory_patterns << pattern_str
         else
-          @custom_patterns << Regexp.new(glob_to_regex(glob_pattern))
+          # All other custom excludes are treated as glob patterns.
+          # If the pattern does not contain a slash, prepend "**/"
+          # to make it match at any depth (e.g., "*.md" becomes "**/*.md").
+          @custom_glob_patterns << if pattern_str.include?("/")
+                                     pattern_str
+                                   else
+                                     "**/#{pattern_str}"
+                                   end
         end
-      end
-    end
-
-    # Builds a single regex from the combined default and custom exclusion patterns.
-    # Handles glob patterns and directory patterns (ending with /).
-    #
-    # @return [Regexp] The combined exclusion regex.
-    def build_exclusion_regex
-      combined_patterns = DEFAULT_EXCLUDES + @options.fetch(:exclude, [])
-      regex_parts = combined_patterns.map do |pattern|
-        if pattern.end_with?("/")
-          # Directory pattern: Match anything starting with this path
-          "^#{Regexp.escape(pattern)}"
-        else
-          # File or glob pattern: Convert glob to regex
-          glob_to_regex(pattern)
-        end
-      end
-      # Combine all parts, ensuring they match the full path or directory prefix
-      Regexp.new(regex_parts.join("|"))
-    end
-
-    # Converts a glob pattern to a Regexp string.
-    # Handles *, **, ?, and character classes.
-    # Ensures the pattern matches the entire string by default.
-    #
-    # @param glob [String] The glob pattern.
-    # @return [String] The regex pattern string.
-    def glob_to_regex(glob)
-      # More robust glob conversion
-      regex = glob.gsub(%r{/\*\*($|/)}, '/.*\\1') # Handle **/ and ** at end
-                  .gsub("*", "[^/]*")          # Match * within path segments
-                  .gsub("?", "[^/]")           # Match ? within path segments
-                  .gsub(".", '\\.')            # Escape dots
-                  .gsub("{", "(")              # Convert { to ( for grouping
-                  .gsub("}", ")")              # Convert } to ) for grouping
-                  .gsub(",", "|")              # Convert , to | for OR within groups
-
-      # Ensure the pattern matches the full path unless it was originally a directory pattern
-      # (which is handled separately now) or contains wildcards suggesting partial match.
-      # If it contains no wildcards, anchor it.
-      if glob.include?("*") || glob.include?("?") || glob.include?("{")
-        regex # Allow partial matching for wildcards
-      else
-        "^#{regex}$" # Anchor exact matches
       end
     end
 
@@ -269,87 +233,38 @@ module Gitingest
       return true if path.match?(DOT_FILE_PATTERN)
 
       # Check for directory exclusion patterns (ending with '/')
-      @options[:exclude].each do |pattern|
-        if pattern.end_with?("/") && path.start_with?(pattern)
-          @logger.debug "Excluding #{path} (matched directory pattern #{pattern})" if @logger.debug?
-          return true
-        end
+      matched_dir_pattern = @directory_patterns.find { |dir_pattern| path.start_with?(dir_pattern) }
+      if matched_dir_pattern
+        @logger.debug { "Excluding #{path} (matched directory pattern: #{matched_dir_pattern})" }
+        return true
       end
 
-      # Continue with regular pattern checks
-      return true if @default_patterns.any? { |pattern| path.match?(pattern) }
-      return true if @custom_patterns.any? { |pattern| path.match?(pattern) }
-
-      @glob_patterns_with_char_classes.any? { |glob_pattern| glob_match?(glob_pattern, path) }
-    end
-
-    def glob_match?(pattern, string)
-      return true if pattern == string
-      return false if !pattern.match?(/[*?\[]/) && pattern != string
-
-      pattern_idx = 0
-      string_idx = 0
-
-      while pattern_idx < pattern.length && string_idx < string.length
-        case pattern[pattern_idx]
-        when "*"
-          pattern_idx += 1 while pattern_idx + 1 < pattern.length && pattern[pattern_idx + 1] == "*"
-          return true if pattern_idx == pattern.length - 1
-
-          next_char = pattern[pattern_idx + 1]
-          pattern_idx += 1
-          while string_idx < string.length
-            break if string[string_idx] == next_char || next_char == "?" ||
-                     (next_char == "[" && char_class_match?(pattern, pattern_idx, string[string_idx]))
-
-            string_idx += 1
-          end
-        when "?" then string_idx += 1
-                      pattern_idx += 1
-        when "["
-          return false unless char_class_match?(pattern, pattern_idx, string[string_idx])
-
-          pattern_idx += 1
-          pattern_idx += 1 while pattern_idx < pattern.length && pattern[pattern_idx] != "]"
-          pattern_idx += 1
-          string_idx += 1
-        when string[string_idx] then string_idx += 1
-                                     pattern_idx += 1
-        else return false
-        end
+      # Check default regex patterns
+      matched_default_pattern = @default_patterns.find { |pattern| path.match?(pattern) }
+      if matched_default_pattern
+        @logger.debug { "Excluding #{path} (matched default pattern: #{matched_default_pattern.source})" }
+        return true
       end
 
-      pattern_idx += 1 while pattern_idx < pattern.length && pattern[pattern_idx] == "*"
-      pattern_idx == pattern.length && string_idx == string.length
-    end
-
-    def char_class_match?(pattern, class_start_idx, char)
-      idx = class_start_idx + 1
-      match = false
-      negate = pattern[idx] == "^" && (idx += 1)
-
-      while idx < pattern.length && pattern[idx] != "]"
-        if idx + 2 < pattern.length && pattern[idx + 1] == "-"
-          range_start = pattern[idx]
-          range_end = pattern[idx + 2]
-          match = true if char >= range_start && char <= range_end
-          idx += 3
-        else
-          match = true if pattern[idx] == char
-          idx += 1
-        end
-        break if match
+      # Check custom glob patterns using File.fnmatch
+      matched_glob_pattern = @custom_glob_patterns.find do |glob_pattern|
+        File.fnmatch(glob_pattern, path, File::FNM_PATHNAME | File::FNM_DOTMATCH)
       end
-      negate ? !match : match
+      if matched_glob_pattern
+        @logger.debug { "Excluding #{path} (matched custom glob pattern: #{matched_glob_pattern})" }
+        return true
+      end
+
+      false
     end
 
     def process_content_to_output(output)
       @logger.debug "Using thread pool with #{@options[:threads]} threads"
       buffer = []
       progress = ProgressIndicator.new(@repo_files.size, @logger)
-      thread_buffers = {}
-      mutex = Mutex.new
-      errors = []
+      thread_buffers = Concurrent::Map.new # Thread-safe map for buffers
+      mutex = Mutex.new # Mutex for shared buffer and output operations
+      errors = Concurrent::Array.new # Thread-safe array for errors
       pool = Concurrent::FixedThreadPool.new(@options[:threads])
       prioritized_files = prioritize_files(@repo_files)
 
@@ -380,9 +295,10 @@ module Gitingest
       end
 
       pool.shutdown
-      pool.wait_for_termination(@options[:thread_timeout]) || (@logger.warn "Thread pool timeout, forcing termination"
-
-                                                               pool.kill)
+      unless pool.wait_for_termination(@options[:thread_timeout])
+        @logger.warn "Thread pool did not shut down gracefully within #{@options[:thread_timeout]}s, forcing termination."
+        pool.kill
+      end
 
       mutex.synchronize do
         thread_buffers.each_value { |local_buffer| buffer.concat(local_buffer) unless local_buffer.empty? }
@@ -459,12 +375,14 @@ module Gitingest
       elapsed = now - @start_time
       progress_chars = (BAR_WIDTH * (current.to_f / @total)).round
       bar = "[#{"|" * progress_chars}#{" " * (BAR_WIDTH - progress_chars)}]"
-      eta_string = current > 1 && percent < 100 ? " ETA: #{format_time((elapsed / current) * (@total - current))}" : ""
-      rate = begin
-        (current / elapsed).round(1)
-      rescue StandardError
-        0
-      end
+
+      rate = if elapsed.positive?
+               (current / elapsed).round(1)
+             else
+               0 # Avoid division by zero if elapsed time is zero
+             end
+      eta_string = current.positive? && percent < 100 && rate.positive? ? " ETA: #{format_time((@total - current) / rate)}" : ""
+
       print "\r\e[K#{bar} #{percent}% | #{current}/#{@total} files (#{rate} files/sec)#{eta_string}"
       print "\n" if current == @total
       if (percent % 10).zero? && percent != @last_percent || current == @total

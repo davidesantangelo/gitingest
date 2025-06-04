@@ -716,7 +716,7 @@
         <div class="header-container">
             <div class="logo">
                 <div class="logo-icon">G</div>
-                <div class="logo-text">Gitingest <span class="version-tag">v0.6.3</span></div>
+                <div class="logo-text">Gitingest <span class="version-tag">v0.7.0</span></div>
             </div>
             <nav>
                 <ul>
@@ -765,7 +765,7 @@
                         <span class="terminal-command">gem install gitingest</span>
                     </div>
                     <div class="terminal-output">
-                        Successfully installed gitingest-0.6.3<br />
+                        Successfully installed gitingest-0.7.0<br />
                         1 gem installed
                     </div>
                     <div class="terminal-line">
@@ -904,8 +904,31 @@ gitingest --repository user/repo --show-structure</code></pre>
             <div class="timeline">
                 <div class="timeline-item">
                     <div class="timeline-date">
+                        <span class="timeline-month">Jun</span>
+                        <span class="timeline-day">04</span>
+                    </div>
+                    <div class="timeline-content">
+                        <h3 class="timeline-version">v0.7.0</h3>
+                        <p class="timeline-desc">Improved file exclusion logic and debug logging.</p>
+                        <div class="timeline-list">
+                            <ul>
+                                <li>Improved file exclusion logic for glob patterns to correctly match files at any
+                                    directory depth (e.g., <code>*.md</code> now correctly matches
+                                    <code>docs/file.md</code>).
+                                </li>
+                                <li>Refined internal handling of exclusion patterns for clarity and robustness, using
+                                    <code>File.fnmatch</code> for all custom glob patterns.
+                                </li>
+                                <li>Enhanced debug logging for file exclusion to show the specific pattern that caused a
+                                    match.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-date">
                         <span class="timeline-month">Apr</span>
-                        <span class="timeline-day">15</span>
+                        <span class="timeline-day">14</span>
                     </div>
                     <div class="timeline-content">
                         <h3 class="timeline-version">v0.6.3</h3>
@@ -976,7 +999,7 @@ gitingest --repository user/repo --show-structure</code></pre>
                 <div class="timeline-item">
                     <div class="timeline-date">
                         <span class="timeline-month">Mar</span>
-                        <span class="timeline-day">04</span>
+                        <span class="timeline-day">10</span> <!-- Corrected day based on CHANGELOG.md -->
                     </div>
                     <div class="timeline-content">
                         <h3 class="timeline-version">v0.5.0</h3>
@@ -994,7 +1017,7 @@ gitingest --repository user/repo --show-structure</code></pre>
                 <div class="timeline-item">
                     <div class="timeline-date">
                         <span class="timeline-month">Mar</span>
-                        <span class="timeline-day">04</span>
+                        <span class="timeline-day">03</span> <!-- Corrected day based on CHANGELOG.md -->
                     </div>
                     <div class="timeline-content">
                         <h3 class="timeline-version">v0.4.0</h3>
@@ -1014,16 +1037,17 @@ gitingest --repository user/repo --show-structure</code></pre>
                         <span class="timeline-month">Mar</span>
                         <span class="timeline-day">03</span>
                     </div>
-                    <div class="timeline-content"></div>
-                    <h3 class="timeline-version">v0.3.1</h3>
-                    <p class="timeline-desc">Optimized threading with configurable options and introduced
-                        exponential backoff for API requests.</p>
-                    <div class="timeline-list">
-                        <ul>
-                            <li>Configurable threading options</li>
-                            <li>Added thread-local buffers</li>
-                            <li>Improved file exclusion performance</li>
-                        </ul>
+                    <div class="timeline-content">
+                        <h3 class="timeline-version">v0.3.1</h3>
+                        <p class="timeline-desc">Optimized threading with configurable options and introduced
+                            exponential backoff for API requests.</p>
+                        <div class="timeline-list">
+                            <ul>
+                                <li>Configurable threading options</li>
+                                <li>Added thread-local buffers</li>
+                                <li>Improved file exclusion performance</li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
             </div>

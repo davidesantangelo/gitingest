@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0] - 2025-06-04
+
+### Changed
+- Improved file exclusion logic for glob patterns to correctly match files at any directory depth (e.g., `*.md` now correctly matches `docs/file.md`).
+- Refined internal handling of exclusion patterns for clarity and robustness, using `File.fnmatch` for all custom glob patterns.
+- Enhanced debug logging for file exclusion to show the specific pattern that caused a match.
+
 ## [0.6.3] - 2025-04-14
 
 ### Fixed
@@ -16,8 +23,6 @@
 ### Fixed
 - Fixed error "target of repeat operator is not specified" when using `--exclude` with glob patterns like `*.md`
 
----
-
 ## [0.6.0] - 2025-03-18
 
 ### Changed
@@ -25,8 +30,6 @@
 - Enhanced error handling in repository access validation
 - Updated documentation to reflect the correct default branch behavior
 - Fixed issues with repository validation in tests
-
----
 
 ## [0.5.0] - 2025-03-10
 
@@ -39,8 +42,6 @@
 ### Changed
 - Enhanced documentation with directory structure visualization examples
 - Updated CLI help with the new option
-
----
 
 ## [0.4.0] - 2025-03-03
 
@@ -59,8 +60,6 @@
 - Resolved thread pool shutdown issues in test environment
 - Fixed race conditions in progress indicator updates
 - Addressed timing inconsistencies in multithreaded test scenarios
-
----
 
 ## [0.3.1] - 2025-03-03
 
@@ -82,8 +81,6 @@
 - Ensured thread pool shutdown respects the configured timeout.
 - Resolved potential race conditions in file content retrieval.
 
----
-
 ## [0.3.0] - 2025-03-02
 
 ### Added
@@ -95,8 +92,6 @@
 - Added comprehensive method documentation and parameter descriptions.
 - Optimized thread pool size calculation for improved performance.
 - Improved error handling in concurrent operations.
-
----
 
 ## [0.2.0] - 2025-03-02
 
@@ -110,8 +105,6 @@
 - Enabled exclusion of specific file patterns via command-line arguments.
 - Enforced a 1000-file limit to prevent memory overload.
 - Updated version to `0.2.0`.
-
----
 
 ## [0.1.0] - 2025-03-02
 
