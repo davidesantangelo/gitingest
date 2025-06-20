@@ -342,11 +342,14 @@ module Gitingest
 
     def prioritize_files(files)
       files.sort_by do |file|
-        path = file.path.downcase
-        if path.end_with?(".md", ".txt", ".json", ".yaml", ".yml") then 0
-        elsif path.end_with?(".rb", ".py", ".js", ".ts", ".go", ".java", ".c", ".cpp", ".h") then 1
+        ext = File.extname(file.path.downcase)
+        case ext
+        when ".md", ".txt", ".json", ".yaml", ".yml"
+          0 # Documentation and data files first
+        when ".rb", ".py", ".js", ".ts", ".go", ".java", ".c", ".cpp", ".h"
+          1 # Source code files second
         else
-          2
+          2 # Other files last
         end
       end
     end

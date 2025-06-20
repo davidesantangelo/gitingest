@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.7.1] - 2025-06-20
+
+### Changed
+- Refactored file prioritization logic to use a `case` statement for improved readability and maintainability.
+
 ## [0.7.0] - 2025-06-04
 
 ### Changed
