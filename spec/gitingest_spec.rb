@@ -75,6 +75,7 @@ RSpec.describe Gitingest do
 
       it "doesn't exclude regular code files" do
         expect(generator.send(:excluded_file?, "lib/gitingest.rb")).to be false
+        expect(generator.send(:excluded_file?, "src/App.java")).to be false
         expect(generator.send(:excluded_file?, "README.md")).to be false
       end
 
