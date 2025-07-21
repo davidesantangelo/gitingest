@@ -28,7 +28,7 @@ module Gitingest
 
       # Dependency directories
       /node_modules\//, /vendor\//, /bower_components\//, /\.npm\//, /\.yarn\//, /\.pnpm-store\//,
-      /\.bundle\//, /vendor\/bundle/, /packages\//, /site-packages\//,
+      /\.bundle\//, /packages\//, /site-packages\//,
 
       # Virtual environments
       /venv\//, /\.venv\//, /env\//, /\.env/, /virtualenv\//,
@@ -42,8 +42,8 @@ module Gitingest
       /Gemfile\.lock/, /Cargo\.lock/, /bun\.lock/, /bun\.lockb/,
 
       # Build directories and artifacts
-      /build\//, /dist\//, /target\//, /out\//, /\.gradle\//, /\.settings\//,
-      /.*\.egg-info/, /.*\.egg/, /.*\.whl/, /.*\.so/, /bin\//, /obj\//, /pkg\//,
+      /build\//, /dist\//, /target\//, /out\//, /\.gradle\//,
+      /.*\.egg-info\//, /.*\.egg/, /.*\.whl/, /.*\.so/, /bin\//, /obj\//, /pkg\//,
 
       # Cache directories
       /\.cache\//, /\.sass-cache\//, /\.eslintcache\//, /\.pytest_cache\//,
@@ -59,8 +59,8 @@ module Gitingest
       # Language-specific files
       /.*\.min\.js$/, /.*\.min\.css$/, /.*\.map$/, /.*\.tfstate.*/,
       /.*\.gem$/, /.*\.ruby-version/, /.*\.ruby-gemset/, /.*\.rvmrc/,
-      /.*\.rs\.bk$/, /.*\.gradle/, /.*\.suo/, /.*\.user/, /.*\.userosscache/,
-      /.*\.sln\.docstates/, /gradle-app\.setting/,
+      /.*\.rs\.bk$/, /.*\.suo/, /.*\.user/, /.*\.userosscache/,
+      /.*\.sln\.docstates/, /gradle-app\.setting/, /gradlew*/,
       /.*\.pbxuser/, /.*\.mode1v3/, /.*\.mode2v3/, /.*\.perspectivev3/, /.*\.xcuserstate/,
       /\.swiftpm\//, /\.build\//
     ].freeze
