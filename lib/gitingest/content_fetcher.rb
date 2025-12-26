@@ -46,11 +46,11 @@ module Gitingest
             end
             progress.update(index + 1)
           rescue Octokit::Error => e
-            mutex.synchronize { errors << "Error fetching #{repo_file.path}: #{e.message}" }
             @logger.error "Error fetching #{repo_file.path}: #{e.message}"
+            mutex.synchronize { errors << "Error fetching file: #{repo_file.path}" }
           rescue StandardError => e
-            mutex.synchronize { errors << "Unexpected error processing #{repo_file.path}: #{e.message}" }
             @logger.error "Unexpected error processing #{repo_file.path}: #{e.message}"
+            mutex.synchronize { errors << "Unexpected error processing file: #{repo_file.path}" }
           end
         end
       end

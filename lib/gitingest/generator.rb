@@ -7,6 +7,22 @@ module Gitingest
   class Generator
     attr_reader :options, :client, :repo_files, :logger
 
+    # Initialize a new Generator with the given options
+    #
+    # @param options [Hash] Configuration options
+    # @option options [String] :repository GitHub repository in format "username/repo"
+    # @option options [String] :token GitHub personal access token
+    # @option options [String] :branch Repository branch (default: "main")
+    # @option options [String] :output_file Output file path
+    # @option options [Array<String>] :exclude Additional patterns to exclude
+    # @option options [Boolean] :quiet Reduce logging to errors only
+    # @option options [Boolean] :verbose Increase logging verbosity
+    # @option options [Logger] :logger Custom logger instance
+    # @option options [Integer] :threads Number of threads to use (default: auto-detected)
+    # @option options [Integer] :thread_timeout Seconds to wait for thread pool shutdown (default: 60)
+    # @option options [Boolean] :show_structure Show repository directory structure (default: false)
+    # @option options [String] :api_endpoint GitHub Enterprise API endpoint URL (e.g., "https://github.example.com/api/v3/")
+
     def initialize(options = {})
       @options = options
       @repo_files = []
@@ -89,7 +105,42 @@ module Gitingest
     end
 
     def configure_client
-      @client = @options[:token] ? Octokit::Client.new(access_token: @options[:token]) : Octokit::Client.new
+      validate_api_endpoint if @options[:api_endpoint]
+
+      create_client
+
+      log_authentication_details
+    end
+
+    # Validate if the provided API endpoint is a proper URL
+    def validate_api_endpoint
+      endpoint = @options[:api_endpoint]
+      uri = URI.parse(endpoint)
+
+      unless uri.is_a?(URI::HTTP) && uri.host && !uri.host.empty?
+        raise InvalidApiEndpointError, "Invalid API endpoint URL"
+      end
+
+      if uri.scheme == 'http'
+        @logger.warn "WARNING: Using unencrypted HTTP. Token may be exposed to network attackers."
+      end
+
+      @logger.info "Using GitHub Enterprise API endpoint: #{endpoint}"
+    rescue URI::InvalidURIError
+      raise InvalidApiEndpointError, "Invalid API endpoint URL"
+    end
+
+    # Create Octokit client with authentication and API endpoint options
+    # Thread-safe: passes api_endpoint directly to client instead of global config
+    def create_client
+      client_options = {}
+      client_options[:access_token] = @options[:token] if @options[:token]
+      client_options[:api_endpoint] = @options[:api_endpoint] if @options[:api_endpoint]
+      @client = Octokit::Client.new(client_options)
+    end
+
+    # Log authentication status
+    def log_authentication_details
       if @options[:token]
         @logger.info "Using provided GitHub token for authentication"
       else

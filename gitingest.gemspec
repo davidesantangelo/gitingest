@@ -39,13 +39,15 @@ Gem::Specification.new do |spec|
   # guide at: https://bundler.io/guides/creating_gem.html
 
   # Dependencies
+  spec.add_dependency "base64", ">= 0.1" # Required for Ruby 3.4+
   spec.add_dependency "concurrent-ruby", "~> 1.1"
   spec.add_dependency "faraday-retry", "~> 2.0" # Add this line
   spec.add_dependency "octokit", "~> 9.0"
   spec.add_dependency "optparse", "~> 0.1"
+  spec.add_dependency "ostruct"
 
   # Development dependencies
-  spec.add_development_dependency "bundler", "~> 2.0"
+  spec.add_development_dependency "bundler", ">= 2.0"
   spec.add_development_dependency "rake", "~> 13.0"
   spec.add_development_dependency "rspec", "~> 3.0"
 end

@@ -9,5 +9,8 @@ require_relative "gitingest/generator"
 
 module Gitingest
   class Error < StandardError; end
-  # Your code goes here...
+  class InvalidApiEndpointError < Error; end
+  class AuthenticationError < Error; end
+  class RepositoryNotFoundError < Error; end
+  class BranchNotFoundError < Error; end
 end

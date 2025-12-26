@@ -31,6 +31,7 @@ gitingest -r user/repo -s
 ```ruby
 require "gitingest"
 
+# Basic usage
 generator = Gitingest::Generator.new(
   repository: "user/repo",
   token: "YOUR_TOKEN"  # optional
@@ -43,12 +44,43 @@ generator.run
 content = generator.generate_prompt
 ```
 
-## Options
+#### Full Options
+
+```ruby
+require "gitingest"
+
+generator = Gitingest::Generator.new(
+  repository: "user/repo",             # Required: GitHub repo (user/repo format)
+  token: "YOUR_TOKEN",                 # Optional: GitHub personal access token
+  api_endpoint: "https://ghe.example.com/api/v3/",  # Optional: GitHub Enterprise API URL
+  output_file: "output.txt",           # Optional: Output file path
+  branch: "main",                      # Optional: Branch name (default: repo default)
+  exclude: ["*.md", "docs/"],          # Optional: Patterns to exclude
+  show_structure: false,               # Optional: Show directory tree only
+  threads: 4,                          # Optional: Thread count for fetching
+  thread_timeout: 120,                 # Optional: Thread timeout in seconds
+  quiet: false,                        # Optional: Reduce logging to errors only
+  verbose: true,                       # Optional: Enable debug logging
+  logger: Logger.new("gitingest.log")  # Optional: Custom logger instance
+)
+
+# Write to file
+generator.run
+
+# Get content as string
+content = generator.generate_prompt
+
+# Get directory structure
+structure = generator.generate_directory_structure
+```
+
+## CLI Options
 
 | Flag | Description |
 |------|-------------|
 | `-r, --repository` | GitHub repo (user/repo) |
 | `-t, --token` | GitHub token |
+| `-g, --api-endpoint` | GitHub Enterprise API URL |
 | `-o, --output` | Output file |
 | `-b, --branch` | Branch name |
 | `-e, --exclude` | Patterns to exclude |

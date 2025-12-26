@@ -50,4 +50,38 @@ RSpec.describe Gitingest::Generator do
       expect(prompt).not_to include("File: spec/support/helpers.rb")
     end
   end
+
+  describe "api_endpoint validation" do
+    it "accepts valid URLs" do
+      generator = described_class.new(repository: repo_name, api_endpoint: "https://github.example.com/api/v3/")
+      expect(generator.client.api_endpoint).to eq("https://github.example.com/api/v3/")
+    end
+
+    it "accepts URLs with ports" do
+      generator = described_class.new(repository: repo_name, api_endpoint: "https://github.example.com:8443/api/v3/")
+      expect(generator.client.api_endpoint).to eq("https://github.example.com:8443/api/v3/")
+    end
+
+    it "accepts private IP addresses for GHE on internal networks" do
+      generator = described_class.new(repository: repo_name, api_endpoint: "https://10.0.1.50/api/v3/")
+      expect(generator.client.api_endpoint).to eq("https://10.0.1.50/api/v3/")
+    end
+
+    it "accepts localhost for local development" do
+      generator = described_class.new(repository: repo_name, api_endpoint: "https://localhost/api/v3/")
+      expect(generator.client.api_endpoint).to eq("https://localhost/api/v3/")
+    end
+
+    it "rejects malformed URLs" do
+      expect do
+        described_class.new(repository: repo_name, api_endpoint: "not-a-url")
+      end.to raise_error(Gitingest::InvalidApiEndpointError, /Invalid API endpoint URL/)
+    end
+
+    it "rejects URLs without host" do
+      expect do
+        described_class.new(repository: repo_name, api_endpoint: "https:///path")
+      end.to raise_error(Gitingest::InvalidApiEndpointError, /Invalid API endpoint URL/)
+    end
+  end
 end

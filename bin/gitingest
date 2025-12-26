@@ -4,7 +4,7 @@
 require "optparse"
 require "gitingest"
 
-options = {}
+options = { token: ENV["GITHUB_TOKEN"] }
 parser = OptionParser.new do |opts|
   opts.banner = "Usage: gitingest [OPTIONS]"
   opts.separator ""
@@ -14,8 +14,12 @@ parser = OptionParser.new do |opts|
     options[:repository] = repo
   end
 
-  opts.on("-t", "--token TOKEN", "GitHub personal access token") do |token|
+  opts.on("-t", "--token TOKEN", "GitHub personal access token (or set GITHUB_TOKEN env var)") do |token|
     options[:token] = token
+  end
+
+  opts.on("-g", "--api-endpoint URL", "GitHub Enterprise API endpoint URL") do |endpoint|
+    options[:api_endpoint] = endpoint
   end
 
   opts.on("-o", "--output FILE", "Output file for the prompt") do |file|
@@ -59,10 +63,12 @@ parser = OptionParser.new do |opts|
   opts.separator ""
   opts.separator "Examples:"
   opts.separator "  gitingest -r user/repo                      # Basic usage with public repository"
+  opts.separator "  GITHUB_TOKEN=xxx gitingest -r user/repo     # Using environment variable (recommended)"
   opts.separator "  gitingest -r user/repo -t YOUR_TOKEN        # With GitHub token for private repositories"
   opts.separator "  gitingest -r user/repo -o custom_prompt.txt # Custom output file"
   opts.separator "  gitingest -r user/repo -T 8                 # Use 8 threads for processing"
   opts.separator "  gitingest -r user/repo -s                   # Show repository directory structure"
+  opts.separator "  gitingest -r user/repo -g https://ghe.example.com/api/v3/  # GitHub Enterprise"
 end
 
 begin
